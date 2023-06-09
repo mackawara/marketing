@@ -9,7 +9,7 @@ connectDB().then(async () => {
   const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: {
-      //  executablePath: "/usr/bin/chromium-browser",
+      executablePath: "/usr/bin/chromium-browser",
       handleSIGINT: true,
       headless: true,
       args: [
@@ -66,6 +66,7 @@ connectDB().then(async () => {
     //const mediaModel = require("./models/media");
     client.on("message", async (msg) => {
       if (msg.hasMedia && msg.from == "263775231426@c.us") {
+        console.log("message found");
         const fs = require("fs/promises");
         const media = await msg.downloadMedia();
         const uniqueName = new Date().valueOf().toString().slice("5");
@@ -108,48 +109,26 @@ connectDB().then(async () => {
       });
     };
 
-    cron.schedule(`2 9,16,19 * * *`, async () => {
+    cron.schedule(`36 9,18,16,19 * * *`, async () => {
       console.log("cron running");
       let advertMessages = require("./adverts");
       let randomAdvert =
         advertMessages[Math.floor(Math.random() * advertMessages.length)];
-
+      console.log(randomAdvert);
       //contacts
       const me = process.env.ME;
-      //groups
-      const hwangeClubCricket = process.env.HWANGECLUBDELACRICKET;
-      const liveSoccer1 = process.env.LIVESOCCER1;
-      const liveCricket1 = process.env.LIVECRICKET1;
-      const hwangeDealsgrp1 = "263775932942-1555492418@g.us";
-      const sellItHge4 = "263773389927-1588234038@g.us";
-      const sellIthge = "263717766191-1583426999@g.us";
-      const sellIthge2 = "263717766191-1583474819@g.us";
-      const sellIthge5 = "263717766191-1611592932@g.us";
-      const sellIthge3 = "263717766191-1584895535@g.us";
-      const sellIthge6 = "263717766191-1616870613@g.us";
-      const hwangeclassifieds = "263714496540-1579592614@g.us";
-      const hwangeCitytraders = "263774750143-1590396559@g.us";
-      const noCaptBusIdeas = "263783046858-1621225929@g.us";
-
-      const contactListForAds = [
-        hwangeDealsgrp1,
-        sellIthge,
-        sellIthge2,
-        sellItHge4,
-        hwangeCitytraders,
-        hwangeclassifieds,
-        sellIthge5,
-        sellIthge6,
-        sellIthge3,
-        noCaptBusIdeas,
-      ];
+      const contacts = require("./models/busContacts");
+      const contactListForAds = await contacts.find().exec();
 
       for (let i = 0; i < contactListForAds.length; i++) {
         try {
           console.log("test " + i);
-          sendAdMedia(contactListForAds[i]);
+          sendAdMedia(contactListForAds[i].serialisedNumber);
           client
-            .sendMessage(contactListForAds[i], `${randomAdvert}`)
+            .sendMessage(
+              contactListForAds[i].serialisedNumber,
+              `${randomAdvert}`
+            )
             .catch((error) => {
               console.log(error);
             });
@@ -158,7 +137,7 @@ connectDB().then(async () => {
           console.log(error);
           client.sendMessage(
             me,
-            `failed to send automatic message to ${contactListForAds[i]}`
+            `failed to send automatic message to ${contactListForAds[i].notifyName}`
           );
         }
       }
