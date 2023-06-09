@@ -8,12 +8,12 @@ const contactsSchema = new mongoose.Schema({
   product: { type: String, required: false },
   number: {
     type: String,
-    required: true,
+    required: false,
   },
   group: { type: String, required: false },
   notifyName: {
     type: String,
-    required: true,
+    required: false,
   },
   serialisedNumber: {
     type: String,
