@@ -29,65 +29,73 @@ const clientOn = async (client, arg1, arg2, MessageMedia) => {
       const contact = await msg.getContact();
 
       const msgBody = msg.body;
-
-      msgBody.split(" ").forEach(async (word) => {
-        const keywords = {
-          businessKeywords: [
-            "receipt",
-            "invoice books",
-            "cartridges",
-            "toner",
-            "catridge",
-            "ink cartridge",
-            "printer cartridge",
-            "CCTV",
-            "camera",
-            "internet",
-            "Hp cartridge",
-            "kyocera",
-            "computer repairs",
-            "photo shoot",
-            "hard drives",
-            "RAM",
-            "laptops",
-            "computer",
-          ],
-          usdKeyword: [
-            `for eco`,
-            `for ecocash`,
-            `USD available`,
-            `for zipit`,
-            `US for`,
-            `for bank transfer`,
-            `US for`,
-            `usd available`,
-            `ìnternal transfer`,
-          ],
-        };
-
-        if (keywords.businessKeywords.includes(word)) {
-          console.log(msg);
-          //do stuff
-          client.sendMessage(me, `Business keyword alert:\n ${msg.body} from `);
-        }
-      });
+      const keywords = {
+        businessKeywords: [
+          "receipt",
+          "invoice books",
+          "cartridges",
+          "toner",
+          "catridge",
+          "ink cartridge",
+          "printer cartridge",
+          "CCTV",
+          "camera",
+          "internet",
+          "Hp cartridge",
+          "kyocera",
+          "computer repairs",
+          "photo shoot",
+          "hard drives",
+          "RAM",
+          "laptops",
+          "computer",
+        ],
+        usdKeyword: [
+          `for eco`,
+          `for ecocash`,
+          `USD available`,
+          `for zipit`,
+          `US for`,
+          `for bank transfer`,
+          `US for`,
+          `usd available`,
+          `ìnternal transfer`,
+        ],
+      };
 
       if (chat.isGroup) {
+        //  console.log(chat.getContact());
+        const contact = await contactModel.find({
+          serialisedNumber: chat.id.serialized,
+        });
+        if (!contact.length > 0) {
+          const newContact = new contactModel({
+            number: contact.number,
+            serialisedNumber: chat.id._serialized,
+            notifyName: chat.name,
+            number: chat.id.user,
+            group: chat.name,
+            date: new Date().toISOString().slice(0, 10),
+          });
+          try {
+            newContact.save();
+          } catch (err) {
+            console.log(err.data);
+          }
+        }
+        msgBody.split(" ").forEach((word) => {
+          if (keywords.businessKeywords.includes(word)) {
+            client.sendMessage(
+              me,
+              `Business keyword alert:\n ${msg.body} from Group ${chat.name} from ${msg.author}`
+            );
+          }
+        });
         //grpOwner = chat.owner.user;
       } else {
         let from = msg.from;
 
         let senderNotifyName = await contact.pushname;
-
-        if (!contactModel.find({ number: from })) {
-          const newContact = new contactModel({
-            notifyName: senderNotifyName,
-            number: from,
-            serialisedNumber: contact.id._serialised,
-            isBlocked: contact.isBlocked,
-          });
-          newContact.save().then(() => console.log("saved"));
-        }
 
         chat.sendSeen();
         // msg.reply("hi thank you");
