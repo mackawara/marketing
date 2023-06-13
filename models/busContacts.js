@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 
-const contactsSchema = new mongoose.Schema({
+const busGroupsSchema = new mongoose.Schema({
   date: {
     type: String,
     required: false,
@@ -18,9 +18,10 @@ const contactsSchema = new mongoose.Schema({
   serialisedNumber: {
     type: String,
     required: true,
+    Unique: true,
   },
 });
 
-const contactsModel = mongoose.model("contacts", contactsSchema);
+const busGroupsModel = mongoose.model("bizGroups", busGroupsSchema);
 
-module.exports = contactsModel;
+module.exports = busGroupsModel;

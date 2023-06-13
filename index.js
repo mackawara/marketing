@@ -109,7 +109,7 @@ connectDB().then(async () => {
       });
     };
 
-    cron.schedule(`36 9,18,16,19 * * *`, async () => {
+    cron.schedule(`36 9,11,14,17 * * *`, async () => {
       console.log("cron running");
       let advertMessages = require("./adverts");
       let randomAdvert =

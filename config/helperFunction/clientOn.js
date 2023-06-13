@@ -21,7 +21,7 @@ const clientOn = async (client, arg1, arg2, MessageMedia) => {
     });
   }
 
-  const contactModel = require("../../models/busContacts");
+  const busGroupsModel = require("../../models/busContacts");
   // let groupName, grpDescription;
   if (arg1 == "message") {
     client.on(`message`, async (msg) => {
@@ -64,13 +64,14 @@ const clientOn = async (client, arg1, arg2, MessageMedia) => {
       };
 
       if (chat.isGroup) {
-        //  console.log(chat.getContact());
-        const contact = await contactModel.find({
-          serialisedNumber: chat.id.serialized,
+        console.log(await chat.getContact());
+        const contacts = await busGroupsModel.find({
+          serialisedNumber: chat.id._serialized,
         });
-        if (!contact.length > 0) {
-          const newContact = new contactModel({
-            number: contact.number,
+        console.log(contacts);
+        if (!contacts.length > 0) {
+          const newContact = new busGroupsModel({
+            number: contacts.number,
             serialisedNumber: chat.id._serialized,
             notifyName: chat.name,
             number: chat.id.user,
@@ -82,6 +83,8 @@ const clientOn = async (client, arg1, arg2, MessageMedia) => {
           } catch (err) {
             console.log(err.data);
           }
+        } else {
+          console.log("group alredy in db");
         }
         msgBody.split(" ").forEach((word) => {
           if (keywords.businessKeywords.includes(word)) {
