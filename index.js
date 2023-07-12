@@ -109,10 +109,10 @@ connectDB().then(async () => {
       });
     };
 
-    cron.schedule(`36 9,11,14,17 * * *`, async () => {
+    cron.schedule(`36 10,14,17 * * *`, async () => {
       console.log("cron running");
       let advertMessages = require("./adverts");
-     
+
       console.log(randomAdvert);
       //contacts
       const me = process.env.ME;
@@ -121,7 +121,7 @@ connectDB().then(async () => {
 
       for (let i = 0; i < contactListForAds.length; i++) {
         let randomAdvert =
-        advertMessages[Math.floor(Math.random() * advertMessages.length)];
+          advertMessages[Math.floor(Math.random() * advertMessages.length)];
         try {
           console.log("test " + i);
           sendAdMedia(contactListForAds[i].serialisedNumber);
