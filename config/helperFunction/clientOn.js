@@ -64,11 +64,10 @@ const clientOn = async (client, arg1, arg2, MessageMedia) => {
       };
 
       if (chat.isGroup) {
-        console.log(await chat.getContact());
         const contacts = await busGroupsModel.find({
           serialisedNumber: chat.id._serialized,
         });
-        console.log(contacts);
+
         if (!contacts.length > 0) {
           const newContact = new busGroupsModel({
             number: contacts.number,
@@ -83,8 +82,6 @@ const clientOn = async (client, arg1, arg2, MessageMedia) => {
           } catch (err) {
             console.log(err.data);
           }
-        } else {
-          console.log("group alredy in db");
         }
         msgBody.split(" ").forEach((word) => {
           if (keywords.businessKeywords.includes(word)) {
@@ -108,7 +105,7 @@ const clientOn = async (client, arg1, arg2, MessageMedia) => {
   //run when group is left
   else if (arg1 == "group-leave") {
     client.on("group_leave", (notification) => {
-      console.log(notification);
+      ;
       // User has left or been kicked from the group.
 
       /* client.sendMessage(
@@ -119,9 +116,7 @@ const clientOn = async (client, arg1, arg2, MessageMedia) => {
     });
   } else if (arg1 == "group-join") {
     client.on("group_join", (notification) => {
-      console.log(notification);
-      // User has joined or been added to the group.
-      console.log("join", notification);
+
       /*  client.sendMessage(
           notification.id.participant,
           `welcome to ${}}Here are the group rules for your convenience.... \n`

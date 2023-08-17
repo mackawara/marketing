@@ -92,7 +92,7 @@ connectDB().then(async () => {
     const sendAdMedia = (group) => {
       //creates anarray from the files in assets folder
       fs.readdir(directoryPath, function (err, mediaAdverts) {
-        console.log(mediaAdverts);
+      //  console.log(mediaAdverts);
         //handling error
         if (err) {
           return console.log("Unable to scan directory: " + err);
@@ -100,8 +100,7 @@ connectDB().then(async () => {
         let randomMediaAdvert =
           mediaAdverts[Math.floor(Math.random() * mediaAdverts.length)];
         //listing all files using forEach
-        console.log(randomMediaAdvert);
-
+      
         client.sendMessage(
           group,
           MessageMedia.fromFilePath(`./assets/${randomMediaAdvert}`)
@@ -113,7 +112,6 @@ connectDB().then(async () => {
       console.log("cron running");
       let advertMessages = require("./adverts");
 
-      console.log(randomAdvert);
       //contacts
       const me = process.env.ME;
       const contacts = require("./models/busContacts");
@@ -123,7 +121,6 @@ connectDB().then(async () => {
         let randomAdvert =
           advertMessages[Math.floor(Math.random() * advertMessages.length)];
         try {
-          console.log("test " + i);
           sendAdMedia(contactListForAds[i].serialisedNumber);
           client
             .sendMessage(
