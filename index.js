@@ -63,8 +63,8 @@ connectDB().then(async () => {
 
     const nowToday = new Date();
 
-    //const mediaModel = require("./models/media");
-    /* client.on("message", async (msg) => {
+    const mediaModel = require("./models/media");
+     client.on("message", async (msg) => {
       if (msg.hasMedia && msg.from == "263775231426@c.us") {
         console.log("message found");
         const fs = require("fs/promises");
@@ -81,7 +81,7 @@ connectDB().then(async () => {
           }
         );
       }
-    }); */
+    }); 
 
     const path = require("path");
     const fs = require("fs");
