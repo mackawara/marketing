@@ -63,7 +63,7 @@ connectDB().then(async () => {
 
     const nowToday = new Date();
 
-    const mediaModel = require("./models/media");
+   
      client.on("message", async (msg) => {
       if (msg.hasMedia && msg.from == "263775231426@c.us") {
         console.log("message found");
