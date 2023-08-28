@@ -63,8 +63,8 @@ connectDB().then(async () => {
 
     const nowToday = new Date();
 
-   
-     client.on("message", async (msg) => {
+
+    client.on("message", async (msg) => {
       if (msg.hasMedia && msg.from == "263775231426@c.us") {
         console.log("message found");
         const fs = require("fs/promises");
@@ -81,7 +81,7 @@ connectDB().then(async () => {
           }
         );
       }
-    }); 
+    });
 
     const path = require("path");
     const fs = require("fs");
@@ -92,7 +92,7 @@ connectDB().then(async () => {
     const sendAdMedia = (group) => {
       //creates anarray from the files in assets folder
       fs.readdir(directoryPath, function (err, mediaAdverts) {
-      //  console.log(mediaAdverts);
+        //  console.log(mediaAdverts);
         //handling error
         if (err) {
           return console.log("Unable to scan directory: " + err);
@@ -100,7 +100,7 @@ connectDB().then(async () => {
         let randomMediaAdvert =
           mediaAdverts[Math.floor(Math.random() * mediaAdverts.length)];
         //listing all files using forEach
-      
+
         client.sendMessage(
           group,
           MessageMedia.fromFilePath(`./assets/${randomMediaAdvert}`)
@@ -108,7 +108,7 @@ connectDB().then(async () => {
       });
     };
 
-    cron.schedule(`36 10,14,17 * * *`, async () => {
+    cron.schedule(`36 9,13,16 * * *`, async () => {
       console.log("cron running");
       let advertMessages = require("./adverts");
 
