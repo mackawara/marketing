@@ -1,4 +1,5 @@
 const connectDB = require("./config/database");
+const {client}= require("./config/wwebjsConfig")
 
 require("dotenv").config();
 
@@ -6,32 +7,7 @@ require("dotenv").config();
 connectDB().then(async () => {
   const { Client, LocalAuth, MessageMedia } = require("whatsapp-web.js");
 
-  const client = new Client({
-    authStrategy: new LocalAuth(),
-    puppeteer: {
-      executablePath: "/usr/bin/chromium-browser",
-      handleSIGINT: true,
-      headless: true,
-      args: [
-        "--log-level=3", // fatal only
-        "--start-maximized",
-        "--no-default-browser-check",
-        "--disable-infobars",
-        "--disable-web-security",
-        "--disable-site-isolation-trials",
-        "--no-experiments",
-        "--ignore-gpu-blacklist",
-        "--ignore-certificate-errors",
-        "--ignore-certificate-errors-spki-list",
-        "--disable-gpu",
-        "--disable-extensions",
-        "--disable-default-apps",
-        "--enable-features=NetworkService",
-        "--disable-setuid-sandbox",
-        "--no-sandbox",
-      ],
-    },
-  });
+  
 
   client.initialize();
 
@@ -50,7 +26,7 @@ connectDB().then(async () => {
 
     //client events and functions
     //decalre variables that work with client here
-    clientOn(client, "message");
+    clientOn("message");
     clientOn(client, "group-join");
     clientOn(client, "group-leave"); //client
 
@@ -65,8 +41,9 @@ connectDB().then(async () => {
 
 
     client.on("message", async (msg) => {
-      if (msg.hasMedia && msg.from == "263775231426@c.us") {
-        console.log("message found");
+     
+      if (msg.hasMedia && msg.from == "263775231426@c.us"&& msg.body=="advert") {
+        
         const fs = require("fs/promises");
         const media = await msg.downloadMedia();
         const uniqueName = new Date().valueOf().toString().slice("5");
@@ -108,12 +85,12 @@ connectDB().then(async () => {
       });
     };
 
-    cron.schedule(`36 9,13,16 * * *`, async () => {
+    
+    cron.schedule(`43 9,13,16 * * *`, async () => {
       console.log("cron running");
       let advertMessages = require("./adverts");
 
       //contacts
-      const me = process.env.ME;
       const contacts = require("./models/busContacts");
       const contactListForAds = await contacts.find().exec();
 

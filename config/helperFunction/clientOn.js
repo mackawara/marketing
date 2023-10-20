@@ -1,4 +1,5 @@
-const clientOn = async (client, arg1, arg2, MessageMedia) => {
+const {client}= require("../wwebjsConfig")
+const clientOn = async (arg1, arg2, MessageMedia) => {
   const me = process.env.ME;
   //const { MessageMedia } = require("whatsapp-web.js");
 
@@ -92,7 +93,8 @@ const clientOn = async (client, arg1, arg2, MessageMedia) => {
           }
         });
         //grpOwner = chat.owner.user;
-      } else {
+      } else if (!chat.isGroup&& !msg.isStatus &&!msg.isGif &&!msg.hasMedia ){
+        client.sendMessage(me, "*Message Alert*\n"+msgBody+ "\n from "+ contact.number )
         let from = msg.from;
 
         let senderNotifyName = await contact.pushname;
