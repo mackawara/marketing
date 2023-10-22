@@ -5,9 +5,6 @@ const { client, MessageMedia } = require("./config/wwebjsConfig")
 // connect to mongodb before running anything on the app
 connectDB().then(async () => {
   const { Client, LocalAuth, MessageMedia } = require("whatsapp-web.js");
-
-
-
   client.initialize();
 
   //messaging client resources
