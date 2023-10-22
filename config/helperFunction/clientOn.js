@@ -1,6 +1,7 @@
-const {client}= require("../wwebjsConfig")
+const { client } = require("../wwebjsConfig")
+const config = require("../../config")
 const clientOn = async (arg1, arg2, MessageMedia) => {
-  const me = process.env.ME;
+  const me = config.ME;
   //const { MessageMedia } = require("whatsapp-web.js");
 
   if (arg1 == "auth_failure") {
@@ -93,8 +94,8 @@ const clientOn = async (arg1, arg2, MessageMedia) => {
           }
         });
         //grpOwner = chat.owner.user;
-      } else if (!chat.isGroup&& !msg.isStatus &&!msg.isGif &&!msg.hasMedia ){
-        client.sendMessage(me, "*Message Alert*\n"+msgBody+ "\n from "+ contact.number )
+      } else if (!chat.isGroup && !msg.isStatus && !msg.isGif && !msg.hasMedia) {
+        client.sendMessage(me, "*Message Alert*\n" + msgBody + "\n from " + contact.number)
         let from = msg.from;
 
         let senderNotifyName = await contact.pushname;

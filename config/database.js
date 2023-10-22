@@ -1,8 +1,8 @@
 const mongoose = require("mongoose");
-
+const config = require("../config")
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MARKETING_DB_STRING, {
+    const conn = await mongoose.connect(config.MARKETING_DB_STRING, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
