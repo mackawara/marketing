@@ -1,13 +1,12 @@
 const connectDB = require("./config/database");
-const {client}= require("./config/wwebjsConfig")
-
-require("dotenv").config();
+const config = require("./config")
+const { client, MessageMedia } = require("./config/wwebjsConfig")
 
 // connect to mongodb before running anything on the app
 connectDB().then(async () => {
   const { Client, LocalAuth, MessageMedia } = require("whatsapp-web.js");
 
-  
+
 
   client.initialize();
 
@@ -41,9 +40,9 @@ connectDB().then(async () => {
 
 
     client.on("message", async (msg) => {
-     
-      if (msg.hasMedia && msg.from == "263775231426@c.us"&& msg.body=="advert") {
-        
+
+      if (msg.hasMedia && msg.from == "263775231426@c.us" && msg.body == "advert") {
+
         const fs = require("fs/promises");
         const media = await msg.downloadMedia();
         const uniqueName = new Date().valueOf().toString().slice("5");
@@ -85,9 +84,9 @@ connectDB().then(async () => {
       });
     };
 
-    
+
     cron.schedule(`43 9,13,16 * * *`, async () => {
-      console.log("cron running");
+
       let advertMessages = require("./adverts");
 
       //contacts
