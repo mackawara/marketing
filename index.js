@@ -31,14 +31,14 @@ connectDB().then(async () => {
     //decalre variables that work with client here
     client.setDisplayName("Venta tech");
 
-    const me = `263775231426@c.us`;
+    const me = config.ME
 
     const nowToday = new Date();
 
 
     client.on("message", async (msg) => {
 
-      if (msg.hasMedia && msg.from == "263775231426@c.us" && msg.body == "advert") {
+      if (msg.hasMedia && msg.from == me && msg.body == "advert") {
 
         const fs = require("fs/promises");
         const media = await msg.downloadMedia();
