@@ -1,5 +1,6 @@
 const { client } = require("../wwebjsConfig")
 const config = require("../../config")
+const busGroupsModel = require("../../models/busContacts");
 const clientOn = async (arg1, arg2, MessageMedia) => {
   const me = config.ME;
   //const { MessageMedia } = require("whatsapp-web.js");
@@ -23,7 +24,7 @@ const clientOn = async (arg1, arg2, MessageMedia) => {
     });
   }
 
-  const busGroupsModel = require("../../models/busContacts");
+  
   // let groupName, grpDescription;
   if (arg1 == "message") {
     client.on(`message`, async (msg) => {
