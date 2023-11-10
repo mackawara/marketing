@@ -1,6 +1,7 @@
 const connectDB = require("./config/database");
 const config = require("./config")
 const { client, MessageMedia } = require("./config/wwebjsConfig")
+const qrcode = require("qrcode-terminal");
 
 // connect to mongodb before running anything on the app
 connectDB().then(async () => {
@@ -11,9 +12,24 @@ connectDB().then(async () => {
 
   //messaging client resources
   const clientOn = require("./config/helperFunction/clientOn");
-  clientOn(client, "authenticated");
-  clientOn(client, "auth_failure");
-  clientOn(client, "qr");
+  
+    client.on("auth_failure", (msg) => {
+      // Fired if session restore was unsuccessful
+      console.error("AUTHENTICATION FAILURE", msg);
+    });
+  
+    client.on("authenticated", async (session) => {
+      console.log(`client authenticated`);
+    });
+   
+  
+    client.on("qr", (qr) => {
+      console.log("qr stage")
+      qrcode.generate(qr, { small: true });
+      console.log(qr);
+    });
+  
+
 
   client.on("ready", async () => {
     console.log("Client is ready!");
@@ -31,13 +47,13 @@ connectDB().then(async () => {
     //Db models
 
     //decalre variables that work with client here
-    client.setDisplayName("Venta tech");
+   // client.setDisplayName("Venta tech");
 
     const me = config.ME
 
     const nowToday = new Date();
 
-
+    
     client.on("message", async (msg) => {
 
       if (msg.hasMedia && msg.from == me && msg.body == "advert") {

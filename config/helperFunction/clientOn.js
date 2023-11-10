@@ -1,5 +1,6 @@
 const { client } = require("../wwebjsConfig")
 const config = require("../../config")
+const qrcode = require("qrcode-terminal");
 const busGroupsModel = require("../../models/busContacts");
 const clientOn = async (arg1, arg2, MessageMedia) => {
   const me = config.ME;
@@ -16,7 +17,7 @@ const clientOn = async (arg1, arg2, MessageMedia) => {
       console.log(`client authenticated`);
     });
   }
-  const qrcode = require("qrcode-terminal");
+  
   if (arg1 == "qr") {
     client.on("qr", (qr) => {
       qrcode.generate(qr, { small: true });
