@@ -6,7 +6,8 @@
   "scripts": {
     "test": "mocha",
     "start": "node index.js",
-    "build": "npm install"
+    "build": "npm install",
+    "build:docker": "docker build -t marketingdocker ."
   },
   "repository": {
     "type": "git",

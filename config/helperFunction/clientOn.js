@@ -1,29 +1,10 @@
 const { client } = require("../wwebjsConfig")
 const config = require("../../config")
-const qrcode = require("qrcode-terminal");
+
 const busGroupsModel = require("../../models/busContacts");
 const clientOn = async (arg1, arg2, MessageMedia) => {
   const me = config.ME;
   //const { MessageMedia } = require("whatsapp-web.js");
-
-  if (arg1 == "auth_failure") {
-    client.on("auth_failure", (msg) => {
-      // Fired if session restore was unsuccessful
-      console.error("AUTHENTICATION FAILURE", msg);
-    });
-  }
-  if (arg1 == "authenticated") {
-    client.on("authenticated", async (session) => {
-      console.log(`client authenticated`);
-    });
-  }
-  
-  if (arg1 == "qr") {
-    client.on("qr", (qr) => {
-      qrcode.generate(qr, { small: true });
-      console.log(qr);
-    });
-  }
 
   
   // let groupName, grpDescription;

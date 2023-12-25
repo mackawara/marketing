@@ -1,0 +1,9 @@
+node_modules
+dist
+.env
+.dockerignore
+*stories*
+storybook-static
+.vscode
+.wwebjs_cache
+.wwebjs_auth
