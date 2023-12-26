@@ -9,14 +9,16 @@ on:
       - .github/**
 
 env:
-  ME: ${{ME}}
+  ME: ${{secrets.ME}}
   EXECPATH: ${{secrets.EXECPATH}}
   MARKETING_DB_STRING: ${{secrets.MARKETING_DB_STRING}}
-  CLOUDINARY_NAME: ${{secrets. :${{secrets.CLOUDINARY_NAME}}
+  CLOUDINARY_NAME: ${{secrets.CLOUDINARY_NAME}}
   CLOUDINARY_KEY: ${{secrets.CLOUDINARY_KEY}}
   CLOUDINARY_SECRET: ${{secrets.CLOUDINARY_SECRET}}
   PORT: ${{secrets.PORT}}
   NODE_ENV: ${{secrets.NODE_ENV}}
+  DOCKERHUB_USERNAME: ${{secrets.DOCKER_HUB_USERNAME}}
+  DOCKERHUB_PASSWORD: ${{secrets.DOCKER_HUB_PASSWORD}}
 
 jobs:
   build:
