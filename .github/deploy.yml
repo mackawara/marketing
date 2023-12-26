@@ -1,107 +1,40 @@
-name: Build and deploy Docker app to AWS EC@
+name: Build and deploy Docker app  DOCKER HUB
 
 on:
   push:
-    branches: [master, staging]
+    branches: [main, staging]
     paths:
       - src/**
       - 'package.json'
       - .github/**
 
-env: ME :${{ME}}
-  AMNESTYINTERNATIONAL :${{secrets.AMNESTYINTERNATIONAL}}
-  HWANGEBUSINESSMARKETINGGROUP2 :${{secrets.HWANGEBUSINESSMARKETINGGROUP2}}
-  HWANGEBUSINESSMARKETINGGROUP1 :${{secrets.HWANGEBUSINESSMARKETINGGROUP1}}
-  MATNORTHBUSINESSGROUP :${{secrets.MATNORTHBUSINESSGROUP}}
-  HWANGEDEALSGRP1 :${{secrets.HWANGEDEALSGRP1}}
-  HWANGECITYTRADERS :${{secrets.HWANGECITYTRADERS}}
-  HWANGEBUYINGANDSELLING :${{secrets.HWANGEBUYINGANDSELLING}}
-  HWANGECLASSIFIEDS ${=secrets. "263714496540-1579592614@g.us"}
-  SELLITHWANGE4 :${{secrets.SELLITHWANGE4}}
-  TATENDA=${"secrets.263784096094@c.us"}
-  LIVESOCCER1 :${{secrets.LIVESOCCER1}}
-  EXECPATH :${{secrets.EXECPATH}}
-  MARKETING_DB_STRING :${{secrets.MARKETING_DB_STRING}}
-  CLOUDINARY_NAM${Esecrets. :${{secrets.CLOUDINARY_NAME}}
-  CLOUDINARY_KEY :${{secrets.CLOUDINARY_KEY}}
-  CLOUDINARY_SECRET :${{secrets.CLOUDINARY_SECRET}}
-  PORT :${{secrets.PORT}}
-  NODE_ENV :${{secrets.NODE_ENV}}
+env:
+  ME: ${{ME}}
+  EXECPATH: ${{secrets.EXECPATH}}
+  MARKETING_DB_STRING: ${{secrets.MARKETING_DB_STRING}}
+  CLOUDINARY_NAME: ${{secrets. :${{secrets.CLOUDINARY_NAME}}
+  CLOUDINARY_KEY: ${{secrets.CLOUDINARY_KEY}}
+  CLOUDINARY_SECRET: ${{secrets.CLOUDINARY_SECRET}}
+  PORT: ${{secrets.PORT}}
+  NODE_ENV: ${{secrets.NODE_ENV}}
 
 jobs:
-  deploy:
-    name: Build and deploy
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v2
-      - name: Slack Notification
-        uses: act10ns/slack@v1
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      - name: Login to DockerHub
+        uses: docker/login-action@v1
         with:
-          status: ${{ job.status }}
-          channel: '#software-builds'
-          message: Started LSW-WHATSAPP-API Build {{ env.GITHUB_REF_NAME }} branch
-        if: always()
-      - name: Install Utilities
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jq unzip
-      - name: Install AWS Client
-        run: |
-          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-          unzip awscliv2.zip
-          sudo ./aws/install || true
-          aws --version
-          curl "https://s3.us-west-2.amazonaws.com/lightsailctl/latest/linux-amd64/lightsailctl" -o "lightsailctl"
-          sudo mv "lightsailctl" "/usr/local/bin/lightsailctl"
-          sudo chmod +x /usr/local/bin/lightsailctl
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v2
         with:
-          aws-region: ${{ env.AWS_REGION }}
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      - name: Build Production Docker Image (MASTER)
-        if: github.ref == 'refs/heads/master'
-        run: |
-          yarn install --frozen-lockfile && yarn build #to track pre-deployment failures
-          docker build -t ${{ env.AWS_LIGHTSAIL_SERVICE_NAME }}:release .
-      - name: Build Staging Docker Image (STAGING)
-        if: github.ref == 'refs/heads/staging'
-        run: |
-          yarn install --frozen-lockfile && yarn build 
-          docker build -t ${{ env.STAGING_AWS_LIGHTSAIL_SERVICE_NAME }}:release .
-
-      - name: Generate container.template.json
-        run: node gen-container-template.js
-      - name: Push and Deploy Production (MASTER)
-        if: github.ref == 'refs/heads/master'
-        run: |
-          service_name=${{ env.AWS_LIGHTSAIL_SERVICE_NAME }}
-          aws lightsail push-container-image \
-            --region ${{ env.AWS_REGION }} \
-            --service-name ${service_name} \
-            --label ${service_name} \
-            --image ${service_name}:release
-          aws lightsail get-container-images --service-name ${service_name} | jq --raw-output ".containerImages[0].image" > image.txt
-          jq --arg image $(cat image.txt) '.containers.app.image = $image' container.template.json > container.json
-          aws lightsail create-container-service-deployment --service-name ${service_name} --cli-input-json file://$(pwd)/container.json
-      - name: Push and Deploy Staging (STAGING)
-        if: github.ref == 'refs/heads/staging'
-        run: |
-          service_name=${{ env.STAGING_AWS_LIGHTSAIL_SERVICE_NAME }}
-          aws lightsail push-container-image \
-            --region ${{ env.AWS_REGION }} \
-            --service-name ${service_name} \
-            --label ${service_name} \
-            --image ${service_name}:release
-          aws lightsail get-container-images --service-name ${service_name} | jq --raw-output ".containerImages[0].image" > image.txt
-          jq --arg image $(cat image.txt) '.containers.app.image = $image' container.template.json > container.json
-          aws lightsail create-container-service-deployment --service-name ${service_name} --cli-input-json file://$(pwd)/container.json
-      - name: Slack Notification
-        uses: act10ns/slack@v1
-        with:
-          status: ${{ job.status }}
-          channel: '#software-builds'
-          message: Ended LSW-WHATSAPP-API Build {{ env.GITHUB_REF_NAME }} with status ${{ job.status }}!
-        if: always()
+          context: ./
+          push: true
+          dockerfile: ./Dockerfile
+          tags: your-dockerhub-username/cddemo:latest
