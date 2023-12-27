@@ -5,8 +5,6 @@ const qrcode = require('qrcode-terminal');
 
 // connect to mongodb before running anything on the app
 connectDB().then(async () => {
-  const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
-  console.log('this is the node env' + process.env.ME, process.env.TADIEWASHE);
   console.log('initialse client');
   client.initialize();
 
@@ -41,13 +39,7 @@ connectDB().then(async () => {
     //decalre variables that work with client here
     clientOn('message');
     clientOn(client, 'group-join');
-    clientOn(client, 'group-leave'); //client
-
-    //Db models
-
-    //decalre variables that work with client here
-    // client.setDisplayName("Venta tech");
-
+    clientOn(client, 'group-leave');
     const me = config.ME;
 
     client.on('message', async msg => {

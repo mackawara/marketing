@@ -7,7 +7,7 @@ on:
       - src/**
       - 'package.json'
       - .github/**
-      - ./**
+      - './*'
 
 env:
   ME: ${{secrets.ME}}
@@ -49,9 +49,12 @@ jobs:
         run: |
           echo "${{ secrets.ORACLE_VM_PRIVATE_KEY }}" > nothandoracle.key
           chmod 600 nothandoracle.key
-      - name: SSH into EC2 instance and navigate to repo and res
+      - name: SSH into EC2 instance and navigate to repo and reset branch to main
         run: |
-          ssh -o StrictHostKeyChecking=no -i  nothandoracle.key $ORACLE_USERNAME@$ORACLE_VM_URL 'cd repos/marketing  && git reset --hard origin/main && pm2 restart marketing'
+          ssh -o StrictHostKeyChecking=no -i  nothandoracle.key $ORACLE_USERNAME@$ORACLE_VM_URL 'cd repos/marketing  && git checkout main && git reset --hard origin/main'
+      - name: Restart app using pm2
+        run: |
+          ssh -o StrictHostKeyChecking=no -i  nothandoracle.key $ORACLE_USERNAME@$ORACLE_VM_URL 'pm2 restart marketing'
 
 #setup-ssh:
 #runs-on: ubuntu-latest
