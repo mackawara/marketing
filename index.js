@@ -29,11 +29,12 @@ connectDB().then(async () => {
   });
 
   client.on('ready', async () => {
+    const timeDelay = ms => new Promise(res => setTimeout(res, ms));
     console.log('Client is ready!');
+    await timeDelay(2000);
     client.sendMessage(config.ME, 'pipeline confirmed');
     //functions abd resources
     //Helper Functions
-    const timeDelay = ms => new Promise(res => setTimeout(res, ms));
     const cron = require('node-cron');
 
     //client events and functions
@@ -48,8 +49,6 @@ connectDB().then(async () => {
     // client.setDisplayName("Venta tech");
 
     const me = config.ME;
-
-    const nowToday = new Date();
 
     client.on('message', async msg => {
       if (msg.hasMedia && msg.from == me && msg.body == 'advert') {
@@ -78,8 +77,6 @@ connectDB().then(async () => {
     const sendAdMedia = group => {
       //creates anarray from the files in assets folder
       fs.readdir(directoryPath, function (err, mediaAdverts) {
-        //  console.log(mediaAdverts);
-        //handling error
         if (err) {
           return console.log('Unable to scan directory: ' + err);
         }

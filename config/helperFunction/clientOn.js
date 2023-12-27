@@ -1,39 +1,39 @@
-const { client } = require("../wwebjsConfig")
-const config = require("../../config")
+const { client } = require('../wwebjsConfig');
+const config = require('../../config');
 
-const busGroupsModel = require("../../models/busContacts");
+const busGroupsModel = require('../../models/busContacts');
 const clientOn = async (arg1, arg2, MessageMedia) => {
   const me = config.ME;
   //const { MessageMedia } = require("whatsapp-web.js");
 
-  
   // let groupName, grpDescription;
-  if (arg1 == "message") {
-    client.on(`message`, async (msg) => {
+  if (arg1 == 'message') {
+    client.on(`message`, async msg => {
       const chat = await msg.getChat();
       const contact = await msg.getContact();
 
       const msgBody = msg.body;
       const keywords = {
         businessKeywords: [
-          "receipt",
-          "invoice books",
-          "cartridges",
-          "toner",
-          "catridge",
-          "ink cartridge",
-          "printer cartridge",
-          "CCTV",
-          "camera",
-          "internet",
-          "Hp cartridge",
-          "kyocera",
-          "computer repairs",
-          "photo shoot",
-          "hard drives",
-          "RAM",
-          "laptops",
-          "computer",
+          'receipt',
+          'invoice books',
+          'cartridges',
+          'toner',
+          'catridge',
+          'ink cartridge',
+          'printer cartridge',
+          'CCTV',
+          'camera',
+          'internet',
+          'Hp cartridge',
+          'kyocera',
+          'computer repairs',
+          'photo shoot',
+          'hard drives',
+          'RAM',
+          'laptops',
+          'computer',
+          'Follow this link to join my WhatsApp group: https',
         ],
         usdKeyword: [
           `for eco`,
@@ -68,7 +68,7 @@ const clientOn = async (arg1, arg2, MessageMedia) => {
             console.log(err.data);
           }
         }
-        msgBody.split(" ").forEach((word) => {
+        msgBody.split(' ').forEach(word => {
           if (keywords.businessKeywords.includes(word)) {
             client.sendMessage(
               me,
@@ -77,8 +77,16 @@ const clientOn = async (arg1, arg2, MessageMedia) => {
           }
         });
         //grpOwner = chat.owner.user;
-      } else if (!chat.isGroup && !msg.isStatus && !msg.isGif && !msg.hasMedia) {
-        client.sendMessage(me, "*Message Alert*\n" + msgBody + "\n from " + contact.number)
+      } else if (
+        !chat.isGroup &&
+        !msg.isStatus &&
+        !msg.isGif &&
+        !msg.hasMedia
+      ) {
+        client.sendMessage(
+          me,
+          '*Message Alert*\n' + msgBody + '\n from ' + contact.number
+        );
         let from = msg.from;
 
         let senderNotifyName = await contact.pushname;
@@ -89,28 +97,16 @@ const clientOn = async (arg1, arg2, MessageMedia) => {
     });
   }
   //run when group is left
-  else if (arg1 == "group-leave") {
-    client.on("group_leave", (notification) => {
-      ;
-      // User has left or been kicked from the group.
-
-      /* client.sendMessage(
-          user,
-          `We are sorry to see you leave our group , May you indly share wy you decided to leave`
-        ); */
-      //client.sendMessage(me,`User ${notification.id.participant} just left  the group`);
-    });
-  } else if (arg1 == "group-join") {
-    client.on("group_join", (notification) => {
-
+  else if (arg1 == 'group-join') {
+    client.on('group_join', notification => {
       /*  client.sendMessage(
           notification.id.participant,
           `welcome to ${}}Here are the group rules for your convenience.... \n`
         )  */
       // notification.reply("User joined.");
     });
-  } else if (arg1 == "before" && arg2 == "after") {
-    client.on("message_revoke_everyone", async (after, before) => {
+  } else if (arg1 == 'before' && arg2 == 'after') {
+    client.on('message_revoke_everyone', async (after, before) => {
       // Fired whenever a message is deleted by anyone (including you)
       console.log(after); // message after it was deleted.
       if (before) {

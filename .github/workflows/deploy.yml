@@ -7,6 +7,7 @@ on:
       - src/**
       - 'package.json'
       - .github/**
+      - ./**
 
 env:
   ME: ${{secrets.ME}}
@@ -50,7 +51,7 @@ jobs:
           chmod 600 nothandoracle.key
       - name: SSH into EC2 instance and navigate to repo and res
         run: |
-          ssh -o StrictHostKeyChecking=no -i  nothandoracle.key $ORACLE_USERNAME@$ORACLE_VM_URL 'cd repos/marketing  && git pull origin main && pm2 restart marketing'
+          ssh -o StrictHostKeyChecking=no -i  nothandoracle.key $ORACLE_USERNAME@$ORACLE_VM_URL 'cd repos/marketing  && git reset --hard origin/main && pm2 restart marketing'
 
 #setup-ssh:
 #runs-on: ubuntu-latest
