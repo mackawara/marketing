@@ -98,7 +98,7 @@ connectDB().then(async () => {
           client
             .sendMessage(
               contactListForAds[i].serialisedNumber,
-              `${randomAdvert}`
+              `${randomAdvert}\n\n*For quicker replies enquire on thhis number 0775 231 426*`
             )
             .catch(error => {
               console.log(error);
