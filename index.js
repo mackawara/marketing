@@ -94,7 +94,7 @@ connectDB().then(async () => {
       });
     };
 
-    cron.schedule(`43 9,13,16 * * *`, async () => {
+    cron.schedule(`43 9,15 * * *`, async () => {
       let advertMessages = require('./adverts');
 
       //contacts
@@ -114,7 +114,13 @@ connectDB().then(async () => {
             .catch(error => {
               console.log(error);
             });
-          await timeDelay(Math.floor(Math.random() * 10) * 1000); //causes a delay of anything between 1-10 secs between each message
+          const maxDelayTimeInSecs = 9;
+          const minDelayTimeInSecs = 3;
+          const delayTime =
+            (Math.random() * (maxDelayTimeInSecs - minDelayTimeInSecs) +
+              minDelayTimeInSecs) *
+            1000;
+          await timeDelay(delayTime); //causes a delay of anything between 1-10 secs between each message
         } catch (error) {
           console.log(error);
           client.sendMessage(
