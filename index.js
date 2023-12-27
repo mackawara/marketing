@@ -30,6 +30,7 @@ connectDB().then(async () => {
 
   client.on('ready', async () => {
     console.log('Client is ready!');
+    client.sendMessage(config.ME, 'pipeline confirmed');
     //functions abd resources
     //Helper Functions
     const timeDelay = ms => new Promise(res => setTimeout(res, ms));
