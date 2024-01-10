@@ -83,6 +83,10 @@ connectDB().then(async () => {
       });
     };
 
+    cron.schedule(`30 20 * * 7`, async () => {
+      const allChats = await client.getChats();
+      allChats.forEach(chat => chat.clearMessages());
+    });
     cron.schedule(`43 9,15 * * *`, async () => {
       let advertMessages = require('./adverts');
 
