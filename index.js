@@ -2,6 +2,7 @@ const connectDB = require('./config/database');
 const config = require('./config');
 const { client, MessageMedia } = require('./config/wwebjsConfig');
 const qrcode = require('qrcode-terminal');
+const timeDelay = ms => new Promise(res => setTimeout(res, ms));
 
 // connect to mongodb before running anything on the app
 connectDB().then(async () => {
@@ -27,7 +28,7 @@ connectDB().then(async () => {
   });
 
   client.on('ready', async () => {
-    const timeDelay = ms => new Promise(res => setTimeout(res, ms));
+    
     console.log('Client is ready!');
     await timeDelay(2000);
     client.sendMessage(config.ME, 'pipeline confirmed');
@@ -129,3 +130,4 @@ connectDB().then(async () => {
     console.log('Client was logged out', reason);
   });
 });
+module.exports=timeDelay

@@ -1,5 +1,6 @@
 const { client } = require('../wwebjsConfig');
 const config = require('../../config');
+const timeDelay=require('../../index')
 
 const busGroupsModel = require('../../models/busContacts');
 const clientOn = async (arg1, arg2, MessageMedia) => {
@@ -83,6 +84,7 @@ const clientOn = async (arg1, arg2, MessageMedia) => {
         !msg.isGif &&
         !msg.hasMedia
       ) {
+timeDelay(3000)
         client.sendMessage(
           me,
           '*Message Alert*\n' + msgBody + '\n from ' + contact.number

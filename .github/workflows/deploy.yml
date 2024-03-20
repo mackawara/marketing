@@ -40,6 +40,6 @@ jobs:
       - name: SSH into EC2 VM and reset local repo to align to origin
         run: |
           ssh -o StrictHostKeyChecking=no -i  mackawaraaws.pem $EC2_USERNAME@$EC2_URL 'cd repos/marketing && git checkout main  && git fetch --all && git reset --hard origin/main'
-      - name: Restart app using pm2
+      - name: Restart app using pm2 with new code
         run: |
           ssh -o StrictHostKeyChecking=no -i  mackawaraaws.pem $EC2_USERNAME@$EC2_URL ' cd repos/marketing && pm2 restart index.js  --name marketing'
