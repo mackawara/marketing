@@ -87,14 +87,14 @@ connectDB().then(async () => {
       const allChats = await client.getChats();
       allChats.forEach(chat => chat.clearMessages());
     });
-    cron.schedule(`43 9,15 * * *`, async () => {
+    cron.schedule(`15 * * *`, async () => {
       let advertMessages = require('./adverts');
 
       //contacts
       const contacts = require('./models/busContacts');
       const contactListForAds = await contacts.find().exec();
 
-      for (let i = 0; i < contactListForAds.length; i++) {
+      for (let i = 0; i < 2; i++) {
         let randomAdvert =
           advertMessages[Math.floor(Math.random() * advertMessages.length)];
         try {
