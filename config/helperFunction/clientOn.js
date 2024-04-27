@@ -23,7 +23,7 @@ const clientOn = async (arg1, arg2, MessageMedia) => {
           'catridge',
           'ink cartridge',
           'printer cartridge',
-          'CCTV',
+          'CCTV','VSAT',
           'camera',
           'internet',
           'Hp cartridge',
@@ -31,10 +31,10 @@ const clientOn = async (arg1, arg2, MessageMedia) => {
           'computer repairs',
           'photo shoot',
           'hard drives',
-          'RAM',
+          'RAM','cctv',
           'laptops',
           'computer',
-          'Follow this link to join my WhatsApp group: https',
+          'join','Follow this link to join my WhatsApp group' 
         ],
         usdKeyword: [
           `for eco`,
@@ -82,13 +82,17 @@ const clientOn = async (arg1, arg2, MessageMedia) => {
         !chat.isGroup &&
         !msg.isStatus &&
         !msg.isGif &&
-        !msg.hasMedia
+        !msg.hasMedia && m
       ) {
 timeDelay(3000)
-        client.sendMessage(
-          me,
-          '*Message Alert*\n' + msgBody + '\n from ' + contact.number
-        );
+msgBody.split(' ').forEach(word => {
+  if (keywords.businessKeywords.includes(word)) {
+    client.sendMessage(
+      me,
+      `Business keyword alert:\n ${msg.body} from Group ${chat.name} from ${msg.author}`
+    );
+  }
+});
         let from = msg.from;
 
         let senderNotifyName = await contact.pushname;

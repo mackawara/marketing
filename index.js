@@ -88,7 +88,7 @@ connectDB().then(async () => {
       const allChats = await client.getChats();
       allChats.forEach(chat => chat.clearMessages());
     });
-    cron.schedule(`15 * * *`, async () => {
+    cron.schedule(`27 9,15 * * *`, async () => {
       let advertMessages = require('./adverts');
 
       //contacts
