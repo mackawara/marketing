@@ -82,7 +82,7 @@ const clientOn = async (arg1, arg2, MessageMedia) => {
         !chat.isGroup &&
         !msg.isStatus &&
         !msg.isGif &&
-        !msg.hasMedia && m
+        !msg.hasMedia 
       ) {
 timeDelay(3000)
 msgBody.split(' ').forEach(word => {

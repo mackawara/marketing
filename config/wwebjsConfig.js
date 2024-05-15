@@ -9,7 +9,7 @@ const client = new Client({
     handleSIGINT: true,
     //ignoreDefaultArgs: ['--enable-automation'],
     ignoreDefaultArgs: ['--disable-dev-shm-usage'], ignoreHTTPSErrors: true ,
-    headless: process.env.NODE_ENV == 'local' ? false : true,
+    headless: process.env.NODE_ENV == 'local' ? null : true,
     args: [
       '--log-level=3', // fatal only
       '--start-maximized',
@@ -36,17 +36,3 @@ const client = new Client({
 });
 
 module.exports = { client, MessageMedia };
-
-const wwebVersion = '2.2412.54';
-
-const client = new Client({
-    authStrategy: new LocalAuth(), // your authstrategy here
-    puppeteer: {
-        // puppeteer args here
-    },
-    // locking the wweb version
-    webVersionCache: {
-        type: 'remote',
-        remotePath: `https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/${wwebVersion}.html`,
-    },
-});
