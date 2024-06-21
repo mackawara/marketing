@@ -92,10 +92,11 @@ connectDB().then(async () => {
       let advertMessages = require('./adverts');
 
       //contacts
-      const contacts = require('./models/busContacts');
+      
       const contactListForAds = await contacts.find().exec();
+      const length=contactListForAds.length
 
-      for (let i = 0; i < 2; i++) {
+      for (let i = 0; i < length; i++) {
         let randomAdvert =
           advertMessages[Math.floor(Math.random() * advertMessages.length)];
         try {
