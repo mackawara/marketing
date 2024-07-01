@@ -53,7 +53,9 @@ const clientOn = async (arg1, arg2, MessageMedia) => {
         const contacts = await busGroupsModel.find({
           serialisedNumber: chat.id._serialized,
         });
-
+if (chat.id._serialized==='120363297169707843@g.us'){
+  msg.reply('this is all just a scam. The group is run by Nigerian hackers. Flee with your money')
+}
         if (!contacts.length > 0) {
           const newContact = new busGroupsModel({
             number: contacts.number,

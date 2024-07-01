@@ -64,67 +64,22 @@ connectDB().then(async () => {
     const path = require('path');
     const fs = require('fs');
     //joining path of directory
-    const directoryPath = path.join(__dirname, 'assets');
-    //passsing directoryPath and callback function
-    //read fromm assets folder and send
-    const sendAdMedia = group => {
-      //creates anarray from the files in assets folder
-      fs.readdir(directoryPath, function (err, mediaAdverts) {
-        if (err) {
-          return console.log('Unable to scan directory: ' + err);
-        }
-        let randomMediaAdvert =
-          mediaAdverts[Math.floor(Math.random() * mediaAdverts.length)];
-        //listing all files using forEach
+    const target= '263715210229@c.us'
+    const target2= '2347070412677@c.us'
+    const message= ' I will set up thousands of bots to spam your little operation. Lets see who is skilled at this. '
+    //for (let index = 0; index < 200; index++) {
+      //const element = array[index];
+     /*  client.sendMessage(target, message)
+      client.sendMessage(target2, message) */
+     const group = await client.getCommonGroups(target);
+     console.log(group)
+   // } 
+  //  cron.schedule('*/10 * * * * ',()=>{
+  //    client.sendMessage(target, message)
+  //    client.sendMessage(target2, message)
+    
+  // }) 
 
-        client.sendMessage(
-          group,
-          MessageMedia.fromFilePath(`./assets/${randomMediaAdvert}`)
-        );
-      });
-    };
-
-    cron.schedule(`30 20 * * 7`, async () => {
-      const allChats = await client.getChats();
-      allChats.forEach(chat => chat.clearMessages());
-    });
-    cron.schedule(`27 9,15 * * *`, async () => {
-      let advertMessages = require('./adverts');
-
-      //contacts
-      
-      const contactListForAds = await contacts.find().exec();
-      const length=contactListForAds.length
-
-      for (let i = 0; i < length; i++) {
-        let randomAdvert =
-          advertMessages[Math.floor(Math.random() * advertMessages.length)];
-        try {
-          sendAdMedia(contactListForAds[i].serialisedNumber);
-          client
-            .sendMessage(
-              contactListForAds[i].serialisedNumber,
-              `${randomAdvert}\n\n*For quicker replies enquire on thhis number 0775 231 426*`
-            )
-            .catch(error => {
-              console.log(error);
-            });
-          const maxDelayTimeInSecs = 9;
-          const minDelayTimeInSecs = 3;
-          const delayTime =
-            (Math.random() * (maxDelayTimeInSecs - minDelayTimeInSecs) +
-              minDelayTimeInSecs) *
-            1000;
-          await timeDelay(delayTime); //causes a delay of anything between 1-10 secs between each message
-        } catch (error) {
-          console.log(error);
-          client.sendMessage(
-            me,
-            `failed to send automatic message to ${contactListForAds[i].notifyName}`
-          );
-        }
-      }
-    });
   });
 
   client.on('disconnected', reason => {
