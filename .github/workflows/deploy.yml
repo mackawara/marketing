@@ -8,6 +8,7 @@ on:
       - 'package.json'
       - .github/**
       - './index.js'
+      - index.js
 
 env:
   ME: ${{secrets.ME}}

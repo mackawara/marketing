@@ -1,6 +1,6 @@
 const { client } = require('../wwebjsConfig');
 const config = require('../../config');
-const timeDelay=require('../../index')
+const timeDelay = require('../../index');
 
 const busGroupsModel = require('../../models/busContacts');
 const clientOn = async (arg1, arg2, MessageMedia) => {
@@ -14,6 +14,22 @@ const clientOn = async (arg1, arg2, MessageMedia) => {
       const contact = await msg.getContact();
 
       const msgBody = msg.body;
+      if (msg.hasMedia && msg.from == me && msg.body == 'advert') {
+        console.log('message advert received')
+        const fs = require('fs/promises');
+        const media = await msg.downloadMedia();
+        const uniqueName = new Date().valueOf().toString().slice('5');
+        await fs.writeFile(
+          `assets/image${uniqueName}.jpeg`,
+          media.data,
+          'base64',
+          function (err) {
+            if (err) {
+              console.log(err);
+            }
+          }
+        );
+      }
       const keywords = {
         businessKeywords: [
           'receipt',
@@ -23,7 +39,8 @@ const clientOn = async (arg1, arg2, MessageMedia) => {
           'catridge',
           'ink cartridge',
           'printer cartridge',
-          'CCTV','VSAT',
+          'CCTV',
+          'VSAT',
           'camera',
           'internet',
           'Hp cartridge',
@@ -31,32 +48,24 @@ const clientOn = async (arg1, arg2, MessageMedia) => {
           'computer repairs',
           'photo shoot',
           'hard drives',
-          'RAM','cctv',
+          'RAM',
+          'cctv',
           'laptops',
           'computer',
-          'join','Follow this link to join my WhatsApp group' 
-        ],
-        usdKeyword: [
-          `for eco`,
-          `for ecocash`,
-          `USD available`,
-          `for zipit`,
-          `US for`,
-          `for bank transfer`,
-          `US for`,
-          `usd available`,
-          `ìnternal transfer`,
+          'join',
+          'Follow this link to join my WhatsApp group',
         ],
       };
 
       if (chat.isGroup) {
-        const contacts = await busGroupsModel.find({
+        const contact = await busGroupsModel.findOne({
           serialisedNumber: chat.id._serialized,
         });
 
-        if (!contacts.length > 0) {
+        console.log(contact);
+        if (!contact) {
           const newContact = new busGroupsModel({
-            number: contacts.number,
+            number: contact.number,
             serialisedNumber: chat.id._serialized,
             notifyName: chat.name,
             number: chat.id.user,
@@ -82,20 +91,20 @@ const clientOn = async (arg1, arg2, MessageMedia) => {
         !chat.isGroup &&
         !msg.isStatus &&
         !msg.isGif &&
-        !msg.hasMedia 
+        !msg.hasMedia
       ) {
-timeDelay(3000)
-msgBody.split(' ').forEach(word => {
-  if (keywords.businessKeywords.includes(word)) {
-    client.sendMessage(
-      me,
-      `Business keyword alert:\n ${msg.body} from Group ${chat.name} from ${msg.author}`
-    );
-  }
-});
+        timeDelay(3000);
+        msgBody.split(' ').forEach(word => {
+          if (keywords.businessKeywords.includes(word)) {
+            client.sendMessage(
+              me,
+              `Business keyword alert:\n ${msg.body} from Group ${chat.name} from ${msg.author}`
+            );
+          }
+        });
         let from = msg.from;
 
-        let senderNotifyName = await contact.pushname;
+        let senderNotifyName = contact.pushname;
 
         chat.sendSeen();
         // msg.reply("hi thank you");

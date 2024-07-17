@@ -2,6 +2,7 @@ const connectDB = require('./config/database');
 const config = require('./config');
 const { client, MessageMedia } = require('./config/wwebjsConfig');
 const qrcode = require('qrcode-terminal');
+const contacts = require("./models/busContacts");
 const timeDelay = ms => new Promise(res => setTimeout(res, ms));
 
 // connect to mongodb before running anything on the app
@@ -35,51 +36,69 @@ connectDB().then(async () => {
     //functions abd resources
     //Helper Functions
     const cron = require('node-cron');
+    const path = require("path");
+    const fs = require("fs");
+    //joining path of directory
+    const directoryPath = path.join(__dirname, "assets");
+    //passsing directoryPath and callback function
+    //read fromm assets folder and send
+    const sendAdMedia = (group) => {
+      //creates anarray from the files in assets folder
+      fs.readdir(directoryPath, function (err, mediaAdverts) {
+        //  console.log(mediaAdverts);
+        //handling error
+        if (err) {
+          return console.log("Unable to scan directory: " + err);
+        }
+        let randomMediaAdvert =
+          mediaAdverts[Math.floor(Math.random() * mediaAdverts.length)];
+        //listing all files using forEach
+
+        client.sendMessage(
+          group,
+          MessageMedia.fromFilePath(`./assets/${randomMediaAdvert}`)
+        );
+      });
+    };
+
+
+    cron.schedule(`8 9,17 * * *`, async () => {
+
+      let advertMessages = require("./adverts");
+      const contactListForAds = await contacts.find().lean();
+
+      for (let i = 0; i < contactListForAds.length; i++) {
+        let randomAdvert =
+          advertMessages[Math.floor(Math.random() * advertMessages.length)];
+        try {
+          sendAdMedia(contactListForAds[i].serialisedNumber);
+          client
+            .sendMessage(
+              contactListForAds[i].serialisedNumber,
+              `${randomAdvert}`
+            )
+            .catch((error) => {
+              console.log(error);
+            });
+          await timeDelay(Math.floor(Math.random() * 10) * 1000); //causes a delay of anything between 1-10 secs between each message
+        } catch (error) {
+          console.log(error);
+          client.sendMessage(
+            me,
+            `failed to send automatic message to ${contactListForAds[i].notifyName}`
+          );
+        }
+      }
+    
+  });
+
 
     //client events and functions
     //decalre variables that work with client here
     clientOn('message');
     clientOn(client, 'group-join');
     clientOn(client, 'group-leave');
-    const me = config.ME;
-
-    client.on('message', async msg => {
-      if (msg.hasMedia && msg.from == me && msg.body == 'advert') {
-        const fs = require('fs/promises');
-        const media = await msg.downloadMedia();
-        const uniqueName = new Date().valueOf().toString().slice('5');
-        await fs.writeFile(
-          `assets/image${uniqueName}.jpeg`,
-          media.data,
-          'base64',
-          function (err) {
-            if (err) {
-              console.log(err);
-            }
-          }
-        );
-      }
-    });
-
-    const path = require('path');
-    const fs = require('fs');
-    //joining path of directory
-    const target= '263715210229@c.us'
-    const target2= '2347070412677@c.us'
-    const targetGroup='120363297169707843@g.us'
-    const message= ' I will set up thousands of bots to spam your little operation. Lets see who is skilled at this. '
-    //for (let index = 0; index < 200; index++) {
-      //const element = array[index];
-     /*  client.sendMessage(target, message)
-      client.sendMessage(target2, message) */
-    // const group = await client.getCommonGroups(target);
-     //console.log(group)
-   // } 
-  //  cron.schedule('*/10 * * * * ',()=>{
-  //    client.sendMessage(target, message)
-  //    client.sendMessage(target2, message)
-    
-  // }) 
+   
 
   });
 
