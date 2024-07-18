@@ -9,6 +9,7 @@ on:
       - .github/**
       - './index.js'
       - index.js
+      - config/**
 
 env:
   ME: ${{secrets.ME}}

@@ -30,10 +30,6 @@ const client = new Client({
       '--no-sandbox',
     ],
   },
-  /* webVersionCache: {
-    type: 'remote',
-    remotePath: `https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/${wwebVersion}.html`,//https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.htm
-}, */ 
 });
 
 module.exports = { client, MessageMedia };

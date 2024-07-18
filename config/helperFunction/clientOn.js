@@ -92,7 +92,7 @@ const clientOn = async (arg1, arg2, MessageMedia) => {
         !msg.isStatus &&
         !msg.isGif &&
         !msg.hasMedia
-      ) {
+      ) { chat.markUnread();
         timeDelay(3000);
         msgBody.split(' ').forEach(word => {
           if (keywords.businessKeywords.includes(word)) {
@@ -106,8 +106,6 @@ const clientOn = async (arg1, arg2, MessageMedia) => {
 
         let senderNotifyName = contact.pushname;
 
-        chat.sendSeen();
-        // msg.reply("hi thank you");
       }
     });
   }
