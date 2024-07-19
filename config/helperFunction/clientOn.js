@@ -1,12 +1,11 @@
 const { client } = require('../wwebjsConfig');
 const config = require('../../config');
 const timeDelay = require('../../index');
+const isProductEnquiry = require('../isProductEnquiry');
 
 const busGroupsModel = require('../../models/busContacts');
-const clientOn = async (arg1, arg2, MessageMedia) => {
+const clientOn = async (arg1, arg2) => {
   const me = config.ME;
-  //const { MessageMedia } = require("whatsapp-web.js");
-
   // let groupName, grpDescription;
   if (arg1 == 'message') {
     client.on(`message`, async msg => {
@@ -15,7 +14,7 @@ const clientOn = async (arg1, arg2, MessageMedia) => {
 
       const msgBody = msg.body;
       if (msg.hasMedia && msg.from == me && msg.body == 'advert') {
-        console.log('message advert received')
+        console.log('message advert received');
         const fs = require('fs/promises');
         const media = await msg.downloadMedia();
         const uniqueName = new Date().valueOf().toString().slice('5');
@@ -62,7 +61,7 @@ const clientOn = async (arg1, arg2, MessageMedia) => {
           serialisedNumber: chat.id._serialized,
         });
 
-        console.log(contact);
+       console.log(contact)
         if (!contact) {
           const newContact = new busGroupsModel({
             number: contact.number,
@@ -78,34 +77,37 @@ const clientOn = async (arg1, arg2, MessageMedia) => {
             console.log(err.data);
           }
         }
-        msgBody.split(' ').forEach(word => {
+      /*   msgBody.split(' ').forEach(word => {
           if (keywords.businessKeywords.includes(word)) {
             client.sendMessage(
               me,
               `Business keyword alert:\n ${msg.body} from Group ${chat.name} from ${msg.author}`
             );
           }
-        });
+        }); */
         //grpOwner = chat.owner.user;
       } else if (
         !chat.isGroup &&
         !msg.isStatus &&
         !msg.isGif &&
         !msg.hasMedia
-      ) { chat.markUnread();
+      ) {
+        // this is a message to the inbox whic could be an enquiry
+        chat.markUnread();
         timeDelay(3000);
-        msgBody.split(' ').forEach(word => {
-          if (keywords.businessKeywords.includes(word)) {
+        const inhouse = [process.env.ME, process.env.VENTA];
+        const isInhouseNumber = inhouse.includes(chat.id) ? true : false;
+const number = await chat.getContact()
+console.log(process.env.VENTAGROUP)
+        if (!isInhouseNumber) {
+          const isEnquiry = await isProductEnquiry(msgBody);
+          if (isEnquiry) {
             client.sendMessage(
-              me,
-              `Business keyword alert:\n ${msg.body} from Group ${chat.name} from ${msg.author}`
+              process.env.VENTAGROUP,
+              `🛑*Enquiry*🛑:\n Please respond to this enquiry\n\n*${msg.body}*\n from ${chat.name} number ${number.id.user}`
             );
           }
-        });
-        let from = msg.from;
-
-        let senderNotifyName = contact.pushname;
-
+        }
       }
     });
   }
