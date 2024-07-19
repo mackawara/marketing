@@ -54,6 +54,9 @@ jobs:
       - name: SSH into EC2 instance and navigate to repo and reset branch to main
         run: |
           ssh -o StrictHostKeyChecking=no -i  nothandoracle.key $ORACLE_USERNAME@$ORACLE_VM_URL 'cd repos/marketing  && git fetch --all && git reset --hard origin/main'
+      - name: use npm install to install any additional packages
+        run: |
+          ssh -o StrictHostKeyChecking=no -i  nothandoracle.key $ORACLE_USERNAME@$ORACLE_VM_URL 'cd repos/marketing && rm -rf node_modules  && npm install'
       - name: Restart app using pm2
         run: |
           ssh -o StrictHostKeyChecking=no -i  nothandoracle.key $ORACLE_USERNAME@$ORACLE_VM_URL 'pm2 restart marketing'
