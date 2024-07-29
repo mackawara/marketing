@@ -60,22 +60,3 @@ jobs:
       - name: Restart app using pm2
         run: |
           ssh -o StrictHostKeyChecking=no -i  nothandoracle.key $ORACLE_USERNAME@$ORACLE_VM_URL 'pm2 restart marketing'
-
-#setup-ssh:
-#runs-on: ubuntu-latest
-#env:
-#AWS_PRIVATE_KEY: ${{ secrets.EC2_PRIVATE_KEY }}
-#EC2_URL: ${{ secrets.EC2_URL }}
-#EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
-#steps:
-#- name: Setup SSH for EC2
-#uses: omarhosny206/setup-ssh-for-ec2@v1.0.0
-#with:
-#EC2_SSH_PRIVATE_KEY: $EC2_SSH_PRIVATE_KEY
-#EC2_URL: $EC2_URL
-#- name: Get into repos
-#run: ssh -o StrictHostKeyChecking=no $EC2_USERNAME@$EC2_URL "cd repos/askme"
-#- name: Pull latest changes
-#run: ssh -o StrictHostKeyChecking=no $EC2_USERNAME@$EC2_URL "git pull origin main"
-#- name: Restart using pm2
-#run: ssh -o StrictHostKeyChecking=no $EC2_USERNAME@$EC2_URL "pm2 restart marketing

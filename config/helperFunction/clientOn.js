@@ -61,7 +61,7 @@ const clientOn = async (arg1, arg2) => {
           serialisedNumber: chat.id._serialized,
         });
 
-       console.log(contact)
+        console.log(contact);
         if (!contact) {
           const newContact = new busGroupsModel({
             number: contact.number,
@@ -77,7 +77,7 @@ const clientOn = async (arg1, arg2) => {
             console.log(err.data);
           }
         }
-      /*   msgBody.split(' ').forEach(word => {
+        /*   msgBody.split(' ').forEach(word => {
           if (keywords.businessKeywords.includes(word)) {
             client.sendMessage(
               me,
@@ -97,11 +97,15 @@ const clientOn = async (arg1, arg2) => {
         timeDelay(3000);
         const inhouse = [process.env.ME, process.env.VENTA];
         const isInhouseNumber = inhouse.includes(chat.id) ? true : false;
-const number = await chat.getContact()
-console.log(process.env.VENTAGROUP)
+        const number = await chat.getContact();
+
         if (!isInhouseNumber) {
           const isEnquiry = await isProductEnquiry(msgBody);
           if (isEnquiry) {
+            client.sendMessage(
+              process.env.NOTHANDO,
+              `🛑*Enquiry*🛑:\n Please respond to this enquiry\n\n*${msg.body}*\n from ${chat.name} number ${number.id.user}`
+            );
             client.sendMessage(
               process.env.VENTAGROUP,
               `🛑*Enquiry*🛑:\n Please respond to this enquiry\n\n*${msg.body}*\n from ${chat.name} number ${number.id.user}`
