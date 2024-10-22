@@ -70,7 +70,7 @@ connectDB().then(async () => {
         let randomAdvert =
           advertMessages[Math.floor(Math.random() * advertMessages.length)];
         try {
-          if(contactListForAds[i]===process.env.VENTAGROUP){
+          if(contactListForAds[i]=='120363266412319114@g.us'){
             continue
           }
           sendAdMedia(contactListForAds[i].serialisedNumber);
