@@ -4,6 +4,13 @@ const timeDelay = require('../../index');
 const isProductEnquiry = require('../isProductEnquiry');
 
 const busGroupsModel = require('../../models/busContacts');
+const isGroup=(inputString)=> {
+  if (typeof inputString !== "string") {
+      throw new Error("Input must be a string");
+  }
+  return inputString.slice(-5) === "@g.us";
+}
+
 const clientOn = async (arg1, arg2) => {
   const me = config.ME;
   // let groupName, grpDescription;
@@ -87,7 +94,8 @@ const clientOn = async (arg1, arg2) => {
         }); */
         //grpOwner = chat.owner.user;
       } else if (
-        !chat.isGroup &&
+        !chat.isGroup && // isgroupis not working
+      !isGroup(msg.from) &&
         !msg.isStatus &&
         !msg.isGif &&
         !msg.hasMedia
