@@ -28,6 +28,6 @@
     "openai": "^4.52.7",
     "puppeteer": "^23.3.0",
     "qrcode-terminal": "^0.12.0",
-    "whatsapp-web.js": "^1.16.4-alpha.0"
+    "whatsapp-web.js": "^1.26.0"
   }
 }
