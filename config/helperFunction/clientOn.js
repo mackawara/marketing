@@ -2,14 +2,15 @@ const { client } = require('../wwebjsConfig');
 const config = require('../../config');
 const timeDelay = require('../../index');
 const isProductEnquiry = require('../isProductEnquiry');
-
+const { advertService } = require('../../services/advertServices');
 const busGroupsModel = require('../../models/busContacts');
-const isGroup=(inputString)=> {
-  if (typeof inputString !== "string") {
-      throw new Error("Input must be a string");
+const fs = require('fs/promises');
+const isGroup = inputString => {
+  if (typeof inputString !== 'string') {
+    throw new Error('Input must be a string');
   }
-  return inputString.slice(-5) === "@g.us";
-}
+  return inputString.slice(-5) === '@g.us';
+};
 
 const clientOn = async (arg1, arg2) => {
   const me = config.ME;
@@ -18,23 +19,27 @@ const clientOn = async (arg1, arg2) => {
     client.on(`message`, async msg => {
       const chat = await msg.getChat();
       const contact = await msg.getContact();
-
       const msgBody = msg.body;
-      if (msg.hasMedia && msg.from == me && msg.body == 'advert') {
-        console.log('message advert received');
-        const fs = require('fs/promises');
-        const media = await msg.downloadMedia();
-        const uniqueName = new Date().valueOf().toString().slice('5');
-        await fs.writeFile(
-          `assets/image${uniqueName}.jpeg`,
-          media.data,
-          'base64',
-          function (err) {
-            if (err) {
-              console.log(err);
+      //admin messages
+      if (msg.from == me) {
+        if (msg.hasMedia && msg.body.toLowerCase() == 'advert') {
+          console.log('message advert received');
+          
+          const media = await msg.downloadMedia();
+          const uniqueName = new Date().valueOf().toString().slice('5');
+          await fs.writeFile(
+            `./services/assets/image${uniqueName}.jpeg`,
+            media.data,
+            'base64',
+            function (err) {
+              if (err) {
+                console.log(err);
+              }
             }
-          }
-        );
+          );
+        } else if (msg.body.toLowerCase() === 'broadcast') {
+          advertService();
+        }
       }
       const keywords = {
         businessKeywords: [
@@ -95,7 +100,7 @@ const clientOn = async (arg1, arg2) => {
         //grpOwner = chat.owner.user;
       } else if (
         !chat.isGroup && // isgroupis not working
-      !isGroup(msg.from) &&
+        !isGroup(msg.from) &&
         !msg.isStatus &&
         !msg.isGif &&
         !msg.hasMedia
