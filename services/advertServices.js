@@ -9,11 +9,13 @@ const contacts = require('../models/busContacts');
 const me = config.ME;
 const directoryPath = path.join(__dirname, 'assets');
 const sendAdMedia = group => {
+    console.log('now sending media adverts')
   //creates anarray from the files in assets folder
   fs.readdir(directoryPath, function (err, mediaAdverts) {
+      if (err) {
     //handling error
-    if (err) {
-      return console.log('Unable to scan directory: ' + err);
+    console.log('Unable to scan directory: ' + err);
+      return 
     }
     let randomMediaAdvert =
       mediaAdverts[Math.floor(Math.random() * mediaAdverts.length)];
@@ -36,13 +38,13 @@ const advertService = async () => {
       if (excludeList.includes(contactListForAds[i])) {
         continue;
       }
-      sendAdMedia(contactListForAds[i].serialisedNumber);
-      client
+     sendAdMedia(contactListForAds[i].serialisedNumber);
+      /* client
         .sendMessage(contactListForAds[i].serialisedNumber, `${randomAdvert}`)
         .catch(error => {
           console.error(error);
-        });
-      await timeDelay(Math.floor(Math.random() * 10) * 1000); //causes a delay of anything between 1-10 secs between each message
+        }); */
+       await timeDelay(Math.floor(Math.random() * 10) * 1000); //causes a delay of anything between 1-10 secs between each message
     }
   } catch (error) {
     console.error(error);
