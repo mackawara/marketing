@@ -4,7 +4,7 @@ const { client, MessageMedia } = require('./config/wwebjsConfig');
 const qrcode = require('qrcode-terminal');
 const contacts = require('./models/busContacts');
 const {advertService}=require('./services/advertServices')
-let advertMessages = require('./adverts');
+
 const timeDelay = ms => new Promise(res => setTimeout(res, ms));
 // connect to mongodb before running anything on the app
 connectDB().then(async () => {
@@ -39,12 +39,12 @@ connectDB().then(async () => {
     const path = require('path');
     const fs = require('fs');
     //joining path of directory
-    const directoryPath = path.join(__dirname, 'assets');
+    
     //passsing directoryPath and callback function
     //read fromm assets folder and send
     
 
-    cron.schedule(`8 8,14 * * *`, async () => {
+    cron.schedule(`25 7,14 * * *`, async () => {
       advertService();
     });
 

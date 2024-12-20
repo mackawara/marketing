@@ -1,4 +1,4 @@
-name: Build and deploy Docker app  DOCKER HUB
+name: build and deploy nodejs app
 
 on:
   push:

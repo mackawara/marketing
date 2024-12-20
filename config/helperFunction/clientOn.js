@@ -13,6 +13,7 @@ const isGroup = inputString => {
 };
 
 const clientOn = async (arg1, arg2) => {
+  try{
   const me = config.ME;
   // let groupName, grpDescription;
   if (arg1 == 'message') {
@@ -137,7 +138,7 @@ const clientOn = async (arg1, arg2) => {
         )  */
       // notification.reply("User joined.");
     });
-  } else if (arg1 == 'before' && arg2 == 'after') {
+  } /* else if (arg1 == 'before' && arg2 == 'after') {
     client.on('message_revoke_everyone', async (after, before) => {
       // Fired whenever a message is deleted by anyone (including you)
       console.log(after); // message after it was deleted.
@@ -147,7 +148,7 @@ const clientOn = async (arg1, arg2) => {
         client.sendMessage(me, `this message was deleted${before.body}`);
       }
     });
-  }
+  } */}catch(err){console.log(err)}
 };
 
 module.exports = clientOn;
