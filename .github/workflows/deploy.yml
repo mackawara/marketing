@@ -9,6 +9,7 @@ on:
       - .github/**
       - './index.js'
       - index.js
+      - adverts.js
       - config/**
 
 env:

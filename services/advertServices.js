@@ -48,7 +48,7 @@ const advertService = async () => {
         .catch(error => {
           console.error(error);
         }); 
-       await timeDelay(Math.floor(Math.random() * 10) * 1000); //causes a delay of anything between 1-10 secs between each message
+       await timeDelay(Math.floor(Math.random() * 13) * 1000); //causes a delay of anything between 1-10 secs between each message
     }
   } catch (error) {
     console.error(error);
