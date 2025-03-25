@@ -46,7 +46,7 @@ const advertService = async () => {
       let randomAdvert =
         advertMessages[Math.floor(Math.random() * advertMessages.length)];
 
-      if (excludeList.includes(contactListForAds[i])) {
+      if (excludeList.includes(contactListForAds[i].serialisedNumber)) {
         continue;
       }
       sendAdMedia(contactListForAds[i].serialisedNumber);
