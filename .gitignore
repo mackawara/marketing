@@ -133,3 +133,5 @@ dist
 .wwebjs_auth/
 .wwebjs_cache/
 github_actions.cer
+
+services/assets/

@@ -43,7 +43,7 @@ connectDB().then(async () => {
     //passsing directoryPath and callback function
     //read fromm assets folder and send
 
-    cron.schedule(`25 7,14 * * *`, async () => {
+    cron.schedule(`25 7,14,20 * * *`, async () => {
       advertService();
     });
 
