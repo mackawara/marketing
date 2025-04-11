@@ -3,7 +3,7 @@ const config = require('./config');
 const { client, MessageMedia } = require('./config/wwebjsConfig');
 const qrcode = require('qrcode-terminal');
 const contacts = require('./models/busContacts');
-const { advertService } = require('./services/advertServices');
+const { advertService, sendAdMedia } = require('./services/advertServices');
 
 const timeDelay = ms => new Promise(res => setTimeout(res, ms));
 // connect to mongodb before running anything on the app
@@ -46,6 +46,8 @@ connectDB().then(async () => {
     cron.schedule(`25 7,14,20 * * *`, async () => {
       advertService();
     });
+    const message=MessageMedia.fromFilePath('./services/assets/73293612.jpeg')
+   await client.sendMessage(config.ME,message)
 
     //client events and functions
     //decalre variables that work with client here

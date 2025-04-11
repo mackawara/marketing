@@ -10,7 +10,7 @@ const client = new Client({
     handleSIGINT: true,
     //ignoreDefaultArgs: ['--enable-automation'],
     ignoreDefaultArgs: ['--disable-dev-shm-usage'], ignoreHTTPSErrors: true ,
-    headless: process.env.NODE_ENV == 'local' ? false : true,
+    headless:true,// process.env.NODE_ENV == 'local' ? false : true,
     args: [
       '--log-level=3', // fatal only
       '--start-maximized',
