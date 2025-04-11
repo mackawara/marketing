@@ -4,7 +4,8 @@ const timeDelay = require('../../index');
 const isProductEnquiry = require('../isProductEnquiry');
 const { advertService } = require('../../services/advertServices');
 const busGroupsModel = require('../../models/busContacts');
-const fs = require('fs/promises');
+const saveMediaToFile = require('../../UTILS/saveImages');
+const fs = require('fs').promises;
 const isGroup = inputString => {
   if (typeof inputString !== 'string') {
     throw new Error('Input must be a string');
@@ -23,21 +24,16 @@ const clientOn = async (arg1, arg2) => {
       const msgBody = msg.body;
       //admin messages
       if (msg.from == me) {
-        if (msg.hasMedia && msg.body.toLowerCase() == 'advert') {
-          console.log('message advert received');
-          
+        if (msg.hasMedia && msgBody.toLowerCase().includes('advert')) {
+          const words = msg.body.trim().split(/\s+/);
+          console.log(words)
+          let uniqueName=words[1]||'image'
+
+         
           const media = await msg.downloadMedia();
-          const uniqueName = new Date().valueOf().toString().slice('5');
-          await fs.writeFile(
-            `./services/assets/image${uniqueName}.jpeg`,
-            media.data,
-            'base64',
-            function (err) {
-              if (err) {
-                console.log(err);
-              }
-            }
-          );
+         
+         saveMediaToFile(media,uniqueName)
+         
         } else if (msg.body.toLowerCase() === 'broadcast') {
           advertService();
         }
@@ -74,10 +70,9 @@ const clientOn = async (arg1, arg2) => {
           serialisedNumber: chat.id._serialized,
         });
 
-        console.log(contact);
+       
         if (!contact) {
           const newContact = new busGroupsModel({
-            number: contact.number,
             serialisedNumber: chat.id._serialized,
             notifyName: chat.name,
             number: chat.id.user,
@@ -118,7 +113,7 @@ const clientOn = async (arg1, arg2) => {
           if (isEnquiry) {
             client.sendMessage(
               process.env.NOTHANDO,
-              `🛑*Enquiry*🛑:\n Please respond to this enquiry\n\n*${msg.body}*\n from ${chat.name} number ${number.id.user}`
+              `🛑*Enquiry*🛑:\n Hi Mai Ncube,Please respond to this enquiry\n\n*${msg.body}*\n from ${chat.name} number ${number.id.user}`
             );
             client.sendMessage(
               process.env.VENTAGROUP,
