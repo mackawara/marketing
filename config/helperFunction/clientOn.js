@@ -66,6 +66,7 @@ const clientOn = async (arg1, arg2) => {
       };
 
       if (chat.isGroup) {
+        console.log(chat.id._serialized)
         const contact = await busGroupsModel.findOne({
           serialisedNumber: chat.id._serialized,
         });
@@ -85,14 +86,15 @@ const clientOn = async (arg1, arg2) => {
             console.log(err.data);
           }
         }
-        /*   msgBody.split(' ').forEach(word => {
+           msgBody.split(' ').forEach(word => {
           if (keywords.businessKeywords.includes(word)) {
+            console.log(msg.from.serialisedNumber)
             client.sendMessage(
               me,
               `Business keyword alert:\n ${msg.body} from Group ${chat.name} from ${msg.author}`
             );
           }
-        }); */
+        }); 
         //grpOwner = chat.owner.user;
       } else if (
         !chat.isGroup && // isgroupis not working
