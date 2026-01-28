@@ -113,8 +113,9 @@ const clientOn = async (arg1, arg2) => {
         if (!isInhouseNumber) {
           const isEnquiry = await isProductEnquiry(msgBody);
           if (isEnquiry) {
+            console.log(`Enquiry detected from ${chat.name} number ${number.id.user}`);
             client.sendMessage(
-              process.env.NOTHANDO,
+              process.env.ME,
               `🛑*Enquiry*🛑:\n Hi Mai Ncube,Please respond to this enquiry\n\n*${msg.body}*\n from ${chat.name} number ${number.id.user}`
             );
             client.sendMessage(
