@@ -1,11 +1,17 @@
-version: '3'
+version: "3"
 services:
   marketing:
     image: marketinweb
-    container_name: 'marketinweb'
-    restart: 'always'
+    container_name: "marketinweb"
+    restart: "always"
     ports:
-      - '80:4001'
+      - "80:4001"
+    shm_size: "1gb"
+    volumes:
+      - ./.wwebjs_auth:/code/.wwebjs_auth
+    environment:
+      - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+      - WWEBJS_AUTH_PATH=/code/.wwebjs_auth
     depends_on:
       - redis
 

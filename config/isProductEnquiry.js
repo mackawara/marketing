@@ -23,7 +23,7 @@ const messages=[]
       if ('choices' in response) {
         console.log(response.choices[0]['message']['content'].toLowerCase())
        const isEnquiry= response.choices[0]['message']['content'].toLowerCase()==='true'?true:false
-        console.log(isEnquiry)
+        console.log(`Message: ${prompt}, isEnquiry: ${isEnquiry}`)
         return isEnquiry;
       }
     } else {
