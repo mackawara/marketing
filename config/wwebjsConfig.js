@@ -18,7 +18,7 @@ const client = new Client({
   },
   puppeteer: {
     // Use system Chromium in Docker, otherwise let Puppeteer use its bundled Chrome
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+    executablePath: "/usr/bin/chromium-browser",
     headless: true,
     args: [
       "--no-sandbox",
