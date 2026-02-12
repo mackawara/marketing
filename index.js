@@ -3,8 +3,7 @@ const config = require("./config");
 const { client, MessageMedia } = require("./config/wwebjsConfig");
 const qrcode = require("qrcode-terminal");
 const contacts = require("./models/busContacts");
-const { advertService, sendAdMedia } = require("./services/advertServices");
-const { initDriveCache } = require("./services/googleDrive");
+const { advertService, sendAdMedia } = require("./services/advertServices");const { postStatus } = require('./services/statusService');const { initDriveCache } = require("./services/googleDrive");
 
 const timeDelay = (ms) => new Promise((res) => setTimeout(res, ms));
 // connect to mongodb before running anything on the app
@@ -49,6 +48,11 @@ connectDB().then(async () => {
 
     cron.schedule(`25 7,13,18 * * *`, async () => {
       advertService();
+    });
+
+    // Post WhatsApp status daily at 19:00
+    cron.schedule('25 16 * * *', async () => {
+      postStatus();
     });
 
     //client events and functions

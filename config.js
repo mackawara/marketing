@@ -10,6 +10,6 @@ const config = {
     CLOUDINARY_SECRET: process.env.CLOUDINARY_SECRET,
     MARKETING_DB_STRING: process.env.MARKETING_DB_STRING,
     GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
-    GOOGLE_DRIVE_FOLDER_ID: process.env.GOOGLE_DRIVE_FOLDER_ID || '1ZrOpYu656jt6eGeCULEa0u8eA7ztZtSO',
+    GOOGLE_DRIVE_FOLDER_ID: process.env.GOOGLE_DRIVE_FOLDER_ID,
 }
 module.exports = config
