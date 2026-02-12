@@ -4,10 +4,14 @@ const { client, MessageMedia } = require("./config/wwebjsConfig");
 const qrcode = require("qrcode-terminal");
 const contacts = require("./models/busContacts");
 const { advertService, sendAdMedia } = require("./services/advertServices");
+const { initDriveCache } = require("./services/googleDrive");
 
 const timeDelay = (ms) => new Promise((res) => setTimeout(res, ms));
 // connect to mongodb before running anything on the app
 connectDB().then(async () => {
+  // Fetch and log Google Drive file URLs at startup
+  await initDriveCache();
+
   console.log("initialising client, be patient");
   client.initialize();
 

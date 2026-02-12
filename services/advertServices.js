@@ -6,36 +6,28 @@ const { client, MessageMedia } = require('../config/wwebjsConfig');
 let advertMessages = require('../adverts');
 const config = require('../config');
 const contacts = require('../models/busContacts');
+const { getRandomFileFromDrive } = require('./googleDrive');
 const me = config.ME;
 //const directoryPath = path.join(__dirname, 'assets');
 const sendAdMedia = async (group) => {
   console.log(`now sending media adverts to Group ${group}`);
 
-  const directoryPath = path.resolve(__dirname, './assets');
-
-
   try {
-      const mediaAdverts = await fs.readdir(directoryPath);
+      const fileData = getRandomFileFromDrive();
 
-      console.log('length is ' + mediaAdverts.length);
-
-      if (mediaAdverts.length === 0) {
-          console.log('No media adverts found in directory.');
+      if (!fileData) {
+          console.log('No media adverts found in Google Drive folder.');
           return;
       }
 
-      const randomMediaAdvert =
-          mediaAdverts[Math.floor(Math.random() * mediaAdverts.length)];
+      console.log(`Sending file from Google Drive: ${fileData.filename}`);
+      console.log(`File URL: ${fileData.url}`);
 
-      const fullMediaPath = path.join(directoryPath, randomMediaAdvert);
-      
-      console.log('Attempting to send file: ', fullMediaPath);
+      const media = await MessageMedia.fromUrl(fileData.url, {
+          filename: fileData.filename,
+          unsafeMime: true,
+      });
 
-      const media = MessageMedia.fromFilePath(fullMediaPath);
-      
-      // If this client.sendMessage call fails (e.g., due to a session issue),
-      // the promise it returns will be rejected, and execution will jump
-      // to the 'catch (err)' block below.
       await client.sendMessage(group, media);
 
       console.log('Media message sent successfully.');
