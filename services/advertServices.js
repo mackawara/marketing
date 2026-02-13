@@ -1,14 +1,31 @@
-const fs = require('fs').promises;
-const path = require('path');
-
 const timeDelay = ms => new Promise(res => setTimeout(res, ms));
 const { client, MessageMedia } = require('../config/wwebjsConfig');
 let advertMessages = require('../adverts');
-const config = require('../config');
 const contacts = require('../models/busContacts');
 const { getRandomFileFromDrive } = require('./googleDrive');
-const me = config.ME;
-//const directoryPath = path.join(__dirname, 'assets');
+
+
+// --- Shuffle-based non-repeating advert picker ---
+function shuffleArray(arr) {
+  const shuffled = [...arr];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
+let shuffledAdverts = shuffleArray(advertMessages);
+let advertIndex = 0;
+
+function getNextAdvert() {
+  if (advertIndex >= shuffledAdverts.length) {
+    // All adverts have been sent — reshuffle and start over
+    shuffledAdverts = shuffleArray(advertMessages);
+    advertIndex = 0;
+  }
+  return shuffledAdverts[advertIndex++];
+}
 const sendAdMedia = async (group) => {
   console.log(`now sending media adverts to Group ${group}`);
 
@@ -51,20 +68,25 @@ const advertService = async () => {
   try {
     const contactListForAds = await contacts.find().lean();
     const excludeList = ['1203632664192319114@g.us'];
-    for (let i = 0; i < contactListForAds.length; i++) {
-      let randomAdvert =
-        advertMessages[Math.floor(Math.random() * advertMessages.length)];
 
-      if (contactListForAds[i].serialisedNumber!='120363266412319114@g.us') {
-      
-      sendAdMedia(contactListForAds[i].serialisedNumber);
-       client
-        .sendMessage(contactListForAds[i].serialisedNumber, `${randomAdvert}`)
+    for (const contact of contactListForAds) {
+      if (excludeList.includes(contact.serialisedNumber)) {
+        console.log(`Skipping excluded group: ${contact.serialisedNumber}`);
+        continue;
+      }
+
+      const randomAdvert = getNextAdvert();
+
+      await sendAdMedia(contact.serialisedNumber);
+      await timeDelay(Math.floor(Math.random() * 10 + 3) * 1000);
+
+      await client
+        .sendMessage(contact.serialisedNumber, randomAdvert)
         .catch(error => {
           console.error(error);
-        }); 
-      await timeDelay(Math.floor(Math.random() * 13) * 1000); //causes a delay of anything between 1-10 secs between each message
-    }}
+        });
+      await timeDelay(Math.floor(Math.random() * 10 + 3) * 1000);
+    }
   } catch (error) {
     console.error(error);
   }
