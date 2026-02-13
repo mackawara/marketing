@@ -1,4 +1,5 @@
 const { Client, LocalAuth, MessageMedia } = require("whatsapp-web.js");
+const config = require("../config");
 console.log(process.env.NODE_ENV);
 
 // Determine if running in Docker (via environment variable set in Dockerfile)
@@ -18,7 +19,7 @@ const client = new Client({
   },
   puppeteer: {
     // Use system Chromium in Docker, otherwise let Puppeteer use its bundled Chrome
-    executablePath: "/usr/bin/chromium-browser",
+    executablePath: config.NODE_ENV === "production" ? "/usr/bin/chromium-browser" : undefined,
     headless: true,
     args: [
       "--no-sandbox",
@@ -27,7 +28,6 @@ const client = new Client({
       "--disable-accelerated-2d-canvas",
       "--no-first-run",
       "--no-zygote",
-      "--single-process", // Critical for Docker stability
       "--disable-gpu",
       "--disable-web-security",
       "--disable-extensions",
