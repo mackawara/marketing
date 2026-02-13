@@ -3,6 +3,7 @@ const config = require('../../config');
 const timeDelay = require('../../index');
 const isProductEnquiry = require('../isProductEnquiry');
 const { advertService } = require('../../services/advertServices');
+const { harvestGroupContacts } = require('../../services/harvestContacts');
 const busGroupsModel = require('../../models/busContacts');
 const saveMediaToFile = require('../../UTILS/saveImages');
 const fs = require('fs').promises;
@@ -36,6 +37,9 @@ const clientOn = async (arg1, arg2) => {
          
         } else if (msg.body.toLowerCase() === 'broadcast') {
           advertService();
+        } else if (msg.body.toLowerCase() === 'harvest') {
+          client.sendMessage(me, '🔍 Starting contact harvest...');
+          harvestGroupContacts();
         }
       }
       const keywords = {

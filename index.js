@@ -4,6 +4,7 @@ const { client, MessageMedia } = require("./config/wwebjsConfig");
 const qrcode = require("qrcode-terminal");
 const contacts = require("./models/busContacts");
 const { advertService, sendAdMedia } = require("./services/advertServices");const { postStatus } = require('./services/statusService');const { initDriveCache } = require("./services/googleDrive");
+const { harvestGroupContacts } = require("./services/harvestContacts");
 
 const timeDelay = (ms) => new Promise((res) => setTimeout(res, ms));
 // connect to mongodb before running anything on the app
@@ -54,6 +55,14 @@ connectDB().then(async () => {
     cron.schedule('25 16 * * *', async () => {
       postStatus();
     });
+
+    // Harvest group contacts daily at 02:00
+    cron.schedule('0 2 * * *', async () => {
+      harvestGroupContacts();
+    });
+
+    // Initial harvest 30s after startup
+    setTimeout(() => harvestGroupContacts(), 30000);
 
     //client events and functions
     //decalre variables that work with client here
