@@ -5,6 +5,7 @@ const qrcode = require("qrcode-terminal");
 const contacts = require("./models/busContacts");
 const { advertService, sendAdMedia } = require("./services/advertServices");const { postStatus } = require('./services/statusService');const { initDriveCache } = require("./services/googleDrive");
 const { harvestGroupContacts } = require("./services/harvestContacts");
+const channelService = require("./services/channel.service");
 
 const timeDelay = (ms) => new Promise((res) => setTimeout(res, ms));
 // connect to mongodb before running anything on the app
@@ -59,6 +60,16 @@ connectDB().then(async () => {
     // Harvest group contacts daily at 02:00
     cron.schedule('0 2 * * *', async () => {
       harvestGroupContacts();
+    });
+
+    // Post tech tip to channel daily at 09:00
+    cron.schedule('0 9 * * *', async () => {
+      try {
+        await channelService.postRandomTechTip();
+        console.log('Daily tech tip posted to channel');
+      } catch (error) {
+        console.error('Failed to post tech tip:', error);
+      }
     });
 
     // Initial harvest 30s after startup

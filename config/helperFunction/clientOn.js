@@ -49,13 +49,13 @@ const clientOn = async (arg1, arg2) => {
               return;
             }
             
-            await client.sendMessage(me, '🚀 Creating Tech Updates Channel...');
-            const result = await channelService.createChannel("Tech Updates & Solutions");
+            await client.sendMessage(me, `🚀 Creating ${config.CHANNEL_NAME}...`);
+            const result = await channelService.createChannel(config.CHANNEL_NAME);
             
             if (typeof result === "string") {
               await client.sendMessage(me, `❌ Failed to create channel: ${result}`);
             } else {
-              const channelId = result.id._serialized;
+              const channelId = result.nid._serialized;
               await client.sendMessage(me, `✅ Channel created successfully!\n\nChannel ID: ${channelId}\n\nPlease add this to your .env file:\nCHANNEL_ID=${channelId}`);
             }
           } catch (error) {

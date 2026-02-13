@@ -12,5 +12,6 @@ const config = {
     GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
     GOOGLE_DRIVE_FOLDER_ID: process.env.GOOGLE_DRIVE_FOLDER_ID,
     CHANNEL_ID: process.env.CHANNEL_ID,
+    CHANNEL_NAME: process.env.CHANNEL_NAME || "Tech Updates & Solutions",
 }
 module.exports = config
