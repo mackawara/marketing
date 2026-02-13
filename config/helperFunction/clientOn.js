@@ -4,6 +4,7 @@ const timeDelay = require('../../index');
 const isProductEnquiry = require('../isProductEnquiry');
 const { advertService } = require('../../services/advertServices');
 const { harvestGroupContacts } = require('../../services/harvestContacts');
+const channelService = require('../../services/channel.service');
 const busGroupsModel = require('../../models/busContacts');
 const saveMediaToFile = require('../../UTILS/saveImages');
 const fs = require('fs').promises;
@@ -40,6 +41,26 @@ const clientOn = async (arg1, arg2) => {
         } else if (msg.body.toLowerCase() === 'harvest') {
           client.sendMessage(me, '🔍 Starting contact harvest...');
           harvestGroupContacts();
+        } else if (msg.body.toLowerCase() === 'channel-create') {
+          // Create channel only when admin triggers it
+          try {
+            if (config.CHANNEL_ID) {
+              await client.sendMessage(me, '⚠️ Channel already exists. CHANNEL_ID is already set in config.');
+              return;
+            }
+            
+            await client.sendMessage(me, '🚀 Creating Tech Updates Channel...');
+            const result = await channelService.createChannel("Tech Updates & Solutions");
+            
+            if (typeof result === "string") {
+              await client.sendMessage(me, `❌ Failed to create channel: ${result}`);
+            } else {
+              const channelId = result.id._serialized;
+              await client.sendMessage(me, `✅ Channel created successfully!\n\nChannel ID: ${channelId}\n\nPlease add this to your .env file:\nCHANNEL_ID=${channelId}`);
+            }
+          } catch (error) {
+            await client.sendMessage(me, `❌ Error creating channel: ${error.message}`);
+          }
         }
       }
       const keywords = {
