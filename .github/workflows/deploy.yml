@@ -46,3 +46,7 @@ jobs:
       - name: Restart app using pm2
         run: |
           ssh -o StrictHostKeyChecking=no -i  nothandoracle.key $ORACLE_USERNAME@$ORACLE_VM_URL 'pm2 restart marketing'
+
+      - name: Use npm to build the app
+        run: |
+          ssh -o StrictHostKeyChecking=no -i  nothandoracle.key $ORACLE_USERNAME@$ORACLE_VM_URL 'cd repos/marketing && cat package.json'
