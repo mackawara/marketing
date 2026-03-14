@@ -48,4 +48,114 @@ const client = new Client({
   },
 });
 
-module.exports = { client, MessageMedia };
+let isRestarting = false;
+let lastRestartAt = 0;
+let lastRestartReason = 'none';
+let heartbeatIntervalRef = null;
+const RESTART_COOLDOWN_MS = 20000;
+
+const ensureClientReady = async () => {
+  try {
+    const state = await client.getState();
+    return state && state !== 'UNPAIRED' && state !== 'UNPAIRED_IDLE';
+  } catch (error) {
+    return false;
+  }
+};
+
+const restartClient = async (reason = 'unknown') => {
+  const now = Date.now();
+
+  if (isRestarting) {
+    console.log(`[client-restart] Exit already in progress. Reason: ${reason}`);
+    return;
+  }
+
+  if (now - lastRestartAt < RESTART_COOLDOWN_MS) {
+    console.log(`[client-restart] Cooldown active. Skipping exit. Reason: ${reason}`);
+    return;
+  }
+
+  isRestarting = true;
+  lastRestartAt = now;
+  lastRestartReason = reason;
+
+  console.warn(`[client-restart] Exiting for PM2 restart. Reason: ${reason}`);
+  try {
+    await client.destroy();
+  } catch (err) {
+    console.warn('[client-restart] client.destroy() failed:', err.message);
+  }
+  process.exit(1);
+};
+
+const getClientHealth = async () => {
+  let state = 'UNKNOWN';
+  try {
+    state = await client.getState();
+  } catch (error) {
+    state = 'UNAVAILABLE';
+  }
+
+  return {
+    state,
+    isRestarting,
+    lastRestartAt,
+    lastRestartReason,
+  };
+};
+
+const startupHealthCheck = (delayMs = 60000) => {
+  setTimeout(async () => {
+    const ready = await ensureClientReady();
+    if (!ready) {
+      console.warn('[startup-health] Client not ready after startup delay — triggering restart.');
+      restartClient('startup-health-check');
+    } else {
+      console.log('[startup-health] Client ready.');
+    }
+  }, delayMs);
+};
+
+const startClientHealthHeartbeat = (intervalMs = Number(process.env.CLIENT_HEARTBEAT_MS || 60000)) => {
+  if (heartbeatIntervalRef) {
+    return;
+  }
+
+  heartbeatIntervalRef = setInterval(async () => {
+    const health = await getClientHealth();
+    const lastRestartAtIso = health.lastRestartAt ? new Date(health.lastRestartAt).toISOString() : 'never';
+    console.log(
+      `[client-health] state=${health.state} restarting=${health.isRestarting} lastRestartReason=${health.lastRestartReason} lastRestartAt=${lastRestartAtIso}`
+    );
+
+    if (health.state === 'UNAVAILABLE' && !health.isRestarting) {
+      console.warn('[client-health] Client unavailable — triggering recovery restart.');
+      restartClient('heartbeat-recovery');
+    }
+  }, intervalMs);
+};
+
+client.on('disconnected', reason => {
+  restartClient(`disconnected:${reason}`);
+});
+
+client.on('change_state', state => {
+  if (state === 'UNPAIRED' || state === 'UNPAIRED_IDLE' || state === 'CONFLICT') {
+    restartClient(`change_state:${state}`);
+  }
+});
+
+client.on('auth_failure', msg => {
+  restartClient(`auth_failure:${msg}`);
+});
+
+module.exports = {
+  client,
+  MessageMedia,
+  restartClient,
+  ensureClientReady,
+  getClientHealth,
+  startClientHealthHeartbeat,
+  startupHealthCheck,
+};

@@ -1,6 +1,6 @@
 const connectDB = require("./config/database");
 const config = require("./config");
-const { client, MessageMedia } = require("./config/wwebjsConfig");
+const { client, MessageMedia, startClientHealthHeartbeat, startupHealthCheck } = require("./config/wwebjsConfig");
 const qrcode = require("qrcode-terminal");
 const contacts = require("./models/busContacts");
 const { advertService, sendAdMedia } = require("./services/advertServices");const { postStatus } = require('./services/statusService');const { initDriveCache } = require("./services/googleDrive");
@@ -8,21 +8,19 @@ const { harvestGroupContacts } = require("./services/harvestContacts");
 const channelService = require("./services/channel.service");
 
 const timeDelay = (ms) => new Promise((res) => setTimeout(res, ms));
+let isReadyBootstrapComplete = false;
 // connect to mongodb before running anything on the app
 connectDB().then(async () => {
   // Fetch and log Google Drive file URLs at startup
   await initDriveCache();
 
   console.log("initialising client, be patient");
+  startClientHealthHeartbeat();
   client.initialize();
+  startupHealthCheck(60000); // if not ready after 60s, restart
 
   //messaging client resources
   const clientOn = require("./config/helperFunction/clientOn");
-
-  client.on("auth_failure", (msg) => {
-    // Fired if session restore was unsuccessful
-    console.error("AUTHENTICATION FAILURE", msg);
-  });
 
   client.on("authenticated", async (session) => {
     console.log(`client authenticated`);
@@ -36,6 +34,14 @@ connectDB().then(async () => {
 
   client.on("ready", async () => {
     console.log("Client is ready!");
+
+    if (isReadyBootstrapComplete) {
+      console.log('Ready bootstrap already complete, skipping duplicate scheduler setup.');
+      return;
+    }
+
+    isReadyBootstrapComplete = true;
+
     await timeDelay(2000);
     client.sendMessage(config.ME, "pipeline confirmed");
     //functions abd resources
@@ -80,18 +86,6 @@ connectDB().then(async () => {
     clientOn("message");
     clientOn(client, "group-join");
     clientOn(client, "group-leave");
-  });
-
-  client.on("disconnected", async (reason) => {
-    console.log("Client was logged out", reason);
-    // Wait before attempting to reinitialize
-    await timeDelay(5000);
-    console.log("Attempting to reinitialize client...");
-    try {
-      await client.initialize();
-    } catch (error) {
-      console.error("Failed to reinitialize client:", error);
-    }
   });
 });
 module.exports = timeDelay;

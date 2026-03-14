@@ -21,7 +21,13 @@ const clientOn = async (arg1, arg2) => {
   // let groupName, grpDescription;
   if (arg1 == 'message') {
     client.on(`message`, async msg => {
-      const chat = await msg.getChat();
+      let chat;
+      try {
+        chat = await msg.getChat();
+      } catch (err) {
+        console.warn(`[clientOn] Skipping message — could not get chat: ${err.message}`);
+        return;
+      }
       const contact = await msg.getContact();
       const msgBody = msg.body;
       //admin messages
