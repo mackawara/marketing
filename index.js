@@ -7,7 +7,8 @@ const { advertService, sendAdMedia } = require("./services/advertServices");cons
 const { harvestGroupContacts } = require("./services/harvestContacts");
 const channelService = require("./services/channel.service");
 
-const timeDelay = (ms) => new Promise((res) => setTimeout(res, ms));
+const timeDelay = require('./UTILS/timeDelay');
+const { cleanupBeforeInit } = require('./UTILS/cleanupChrome');
 let isReadyBootstrapComplete = false;
 // connect to mongodb before running anything on the app
 connectDB().then(async () => {
@@ -15,6 +16,7 @@ connectDB().then(async () => {
   await initDriveCache();
 
   console.log("initialising client, be patient");
+  cleanupBeforeInit();
   startClientHealthHeartbeat();
   client.initialize();
   startupHealthCheck(60000); // if not ready after 60s, restart

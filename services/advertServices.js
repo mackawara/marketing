@@ -1,4 +1,4 @@
-const timeDelay = ms => new Promise(res => setTimeout(res, ms));
+const timeDelay = require('../UTILS/timeDelay');
 const { client, MessageMedia, restartClient, ensureClientReady } = require('../config/wwebjsConfig');
 let advertMessages = require('../adverts');
 const contacts = require('../models/busContacts');

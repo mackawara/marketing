@@ -1,6 +1,6 @@
 const { client } = require('../wwebjsConfig');
 const config = require('../../config');
-const timeDelay = require('../../index');
+const timeDelay = require('../../UTILS/timeDelay');
 const isProductEnquiry = require('../isProductEnquiry');
 const { advertService } = require('../../services/advertServices');
 const { harvestGroupContacts } = require('../../services/harvestContacts');

@@ -1,9 +1,36 @@
 const { client, MessageMedia } = require('../config/wwebjsConfig');
 const { getRandomFileFromDrive } = require('./googleDrive');
+const GroupContact = require('../models/contacts');
 let advertMessages = require('../adverts');
 
-const timeDelay = (ms) => new Promise((res) => setTimeout(res, ms));
+const timeDelay = require('../UTILS/timeDelay');
 const STATUS_COUNT = 5;
+const MENTION_COUNT = 50;
+
+/**
+ * Fetches MENTION_COUNT random unique contacts from DB and resolves
+ * them to WhatsApp contact objects suitable for use in `mentions`.
+ */
+const getRandomMentionContacts = async () => {
+    const dbContacts = await GroupContact.aggregate([
+        { $sample: { size: MENTION_COUNT * 2 } }, // over-fetch to account for resolution failures
+    ]);
+
+    // Deduplicate before resolving
+    const unique = [...new Map(dbContacts.map((c) => [c.contactId, c])).values()];
+
+    const results = await Promise.allSettled(
+        unique.map((c) => client.getContactById(c.contactId))
+    );
+
+    const resolved = results
+        .filter((r) => r.status === 'fulfilled')
+        .map((r) => r.value)
+        .slice(0, MENTION_COUNT);
+
+    console.log(`📇 Resolved ${resolved.length} contacts for mentions`);
+    return resolved;
+};
 
 /**
  * Posts 5 random media files from Google Drive as WhatsApp statuses
@@ -11,6 +38,18 @@ const STATUS_COUNT = 5;
  */
 const postStatus = async () => {
     console.log(`Posting ${STATUS_COUNT} daily status updates...`);
+
+    // Resolve mention contacts once, reuse across all status posts
+    let mentionContacts = [];
+    try {
+        mentionContacts = await getRandomMentionContacts();
+    } catch (err) {
+        console.warn('⚠️ Could not fetch mention contacts:', err.message);
+    }
+
+    const mentionText = mentionContacts
+        .map((c) => `@${c.id.user}`)
+        .join(' ');
 
     for (let i = 0; i < STATUS_COUNT; i++) {
         try {
@@ -32,9 +71,16 @@ const postStatus = async () => {
             const randomCaption =
                 advertMessages[Math.floor(Math.random() * advertMessages.length)];
 
-            await client.sendMessage('status@broadcast', media) 
+            const caption = mentionText
+                ? `${randomCaption}\n\n${mentionText}`
+                : randomCaption;
 
-            console.log(`✅ Status ${i + 1}/${STATUS_COUNT} posted successfully!`);
+            await client.sendMessage('status@broadcast', media, {
+                caption,
+                ...(mentionContacts.length > 0 && { mentions: mentionContacts }),
+            });
+
+            console.log(`✅ Status ${i + 1}/${STATUS_COUNT} posted with ${mentionContacts.length} mentions`);
 
             // Delay between posts to avoid rate limiting
             if (i < STATUS_COUNT - 1) {
