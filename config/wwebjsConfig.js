@@ -20,6 +20,7 @@ const client = new Client({
   puppeteer: {
     // Use system Chromium in Docker, otherwise let Puppeteer use its bundled Chrome
     executablePath: config.NODE_ENV === "production" ? "/usr/bin/chromium-browser" : undefined,
+    protocolTimeout: 300000, // 5 minutes — Oracle ARM can be slow under load
     headless: true,
     args: [
       "--no-sandbox",

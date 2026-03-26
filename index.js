@@ -1,3 +1,12 @@
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[unhandledRejection] Unhandled promise rejection:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException] Uncaught exception — exiting for PM2 restart:', err);
+  process.exit(1);
+});
+
 const connectDB = require("./config/database");
 const config = require("./config");
 const { client, MessageMedia, startClientHealthHeartbeat, startupHealthCheck } = require("./config/wwebjsConfig");
@@ -57,17 +66,29 @@ connectDB().then(async () => {
     //read fromm assets folder and send
 
     cron.schedule(`25 7,13,18 * * *`, async () => {
-      advertService();
+      try {
+        await advertService();
+      } catch (err) {
+        console.error('[cron:advertService] Unhandled error:', err);
+      }
     });
 
     // Post WhatsApp status daily at 19:00
     cron.schedule('25 16 * * *', async () => {
-      postStatus();
+      try {
+        await postStatus();
+      } catch (err) {
+        console.error('[cron:postStatus] Unhandled error:', err);
+      }
     });
 
     // Harvest group contacts daily at 02:00
     cron.schedule('0 2 * * *', async () => {
-      harvestGroupContacts();
+      try {
+        await harvestGroupContacts();
+      } catch (err) {
+        console.error('[cron:harvestGroupContacts] Unhandled error:', err);
+      }
     });
 
     // Post tech tip to channel daily at 09:00
@@ -81,7 +102,7 @@ connectDB().then(async () => {
     });
 
     // Initial harvest 30s after startup
-    setTimeout(() => harvestGroupContacts(), 30000);
+    setTimeout(() => harvestGroupContacts().catch(err => console.error('[startup:harvestGroupContacts] Unhandled error:', err)), 30000);
 
     //client events and functions
     //decalre variables that work with client here

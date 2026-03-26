@@ -8,9 +8,9 @@ module.exports = {
       autorestart: true,
       watch: false,
       max_memory_restart: '600M',
-      min_uptime: '20s',
-      max_restarts: 20,
-      exp_backoff_restart_delay: 200,
+      min_uptime: '30s',
+      max_restarts: 0,
+      exp_backoff_restart_delay: 5000,
       kill_timeout: 5000,
       env: {
         NODE_ENV: 'production',

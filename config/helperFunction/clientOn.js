@@ -28,7 +28,13 @@ const clientOn = async (arg1, arg2) => {
         console.warn(`[clientOn] Skipping message — could not get chat: ${err.message}`);
         return;
       }
-      const contact = await msg.getContact();
+      let contact;
+      try {
+        contact = await msg.getContact();
+      } catch (err) {
+        console.warn(`[clientOn] Skipping message — could not get contact: ${err.message}`);
+        return;
+      }
       const msgBody = msg.body;
       //admin messages
       if (msg.from == me) {

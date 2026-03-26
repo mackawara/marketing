@@ -1,5 +1,8 @@
 const { client, MessageMedia } = require("../config/wwebjsConfig");
 const config = require("../config");
+const openai = require("./openai");
+const path = require("path");
+const fs = require("fs/promises");
 
 /**
  * Default channel description for tech updates
