@@ -53,15 +53,12 @@ let isRestarting = false;
 let lastRestartAt = 0;
 let lastRestartReason = 'none';
 let heartbeatIntervalRef = null;
+let isClientReady = false; // set true only when 'ready' event fires
 const RESTART_COOLDOWN_MS = 20000;
 
-const ensureClientReady = async () => {
-  try {
-    const state = await client.getState();
-    return state && state !== 'UNPAIRED' && state !== 'UNPAIRED_IDLE';
-  } catch (error) {
-    return false;
-  }
+// Called from index.js when the 'ready' event fires
+const setClientReady = (value) => {
+  isClientReady = value;
 };
 
 const restartClient = async (reason = 'unknown') => {
@@ -78,6 +75,7 @@ const restartClient = async (reason = 'unknown') => {
   }
 
   isRestarting = true;
+  isClientReady = false;
   lastRestartAt = now;
   lastRestartReason = reason;
 
@@ -106,11 +104,12 @@ const getClientHealth = async () => {
   };
 };
 
-const startupHealthCheck = (delayMs = 60000) => {
-  setTimeout(async () => {
-    const ready = await ensureClientReady();
-    if (!ready) {
-      console.warn('[startup-health] Client not ready after startup delay — triggering restart.');
+// Startup health check — uses the ready event flag, not getState().
+// null state during init is normal; only restart if ready never fired.
+const startupHealthCheck = (delayMs = 120000) => {
+  setTimeout(() => {
+    if (!isClientReady) {
+      console.warn('[startup-health] Client did not fire ready event within startup window — triggering restart.');
       restartClient('startup-health-check');
     } else {
       console.log('[startup-health] Client ready.');
@@ -127,11 +126,13 @@ const startClientHealthHeartbeat = (intervalMs = Number(process.env.CLIENT_HEART
     const health = await getClientHealth();
     const lastRestartAtIso = health.lastRestartAt ? new Date(health.lastRestartAt).toISOString() : 'never';
     console.log(
-      `[client-health] state=${health.state} restarting=${health.isRestarting} lastRestartReason=${health.lastRestartReason} lastRestartAt=${lastRestartAtIso}`
+      `[client-health] state=${health.state} ready=${isClientReady} restarting=${health.isRestarting} lastRestartReason=${health.lastRestartReason} lastRestartAt=${lastRestartAtIso}`
     );
 
-    if (health.state === 'UNAVAILABLE' && !health.isRestarting) {
-      console.warn('[client-health] Client unavailable — triggering recovery restart.');
+    // Only recover if client was previously ready but has now become unavailable.
+    // Ignore null state — that's normal during initialization.
+    if (isClientReady && health.state === 'UNAVAILABLE' && !health.isRestarting) {
+      console.warn('[client-health] Client was ready but is now unavailable — triggering recovery restart.');
       restartClient('heartbeat-recovery');
     }
   }, intervalMs);
@@ -155,7 +156,7 @@ module.exports = {
   client,
   MessageMedia,
   restartClient,
-  ensureClientReady,
+  setClientReady,
   getClientHealth,
   startClientHealthHeartbeat,
   startupHealthCheck,

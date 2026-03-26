@@ -9,7 +9,7 @@ process.on('uncaughtException', (err) => {
 
 const connectDB = require("./config/database");
 const config = require("./config");
-const { client, MessageMedia, startClientHealthHeartbeat, startupHealthCheck } = require("./config/wwebjsConfig");
+const { client, MessageMedia, startClientHealthHeartbeat, startupHealthCheck, setClientReady } = require("./config/wwebjsConfig");
 const qrcode = require("qrcode-terminal");
 const contacts = require("./models/busContacts");
 const { advertService, sendAdMedia } = require("./services/advertServices");const { postStatus } = require('./services/statusService');const { initDriveCache } = require("./services/googleDrive");
@@ -45,6 +45,7 @@ connectDB().then(async () => {
 
   client.on("ready", async () => {
     console.log("Client is ready!");
+    setClientReady(true);
 
     if (isReadyBootstrapComplete) {
       console.log('Ready bootstrap already complete, skipping duplicate scheduler setup.');
