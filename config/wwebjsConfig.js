@@ -139,12 +139,23 @@ const startClientHealthHeartbeat = (intervalMs = Number(process.env.CLIENT_HEART
 };
 
 client.on('disconnected', reason => {
-  restartClient(`disconnected:${reason}`);
+  // Only restart if the client was previously ready.
+  // Ignore disconnected events during initialization — these are from the
+  // previous session and would trigger an unnecessary restart loop.
+  if (isClientReady) {
+    restartClient(`disconnected:${reason}`);
+  } else {
+    console.log(`[client-event] Ignoring disconnected event during init. Reason: ${reason}`);
+  }
 });
 
 client.on('change_state', state => {
-  if (state === 'UNPAIRED' || state === 'UNPAIRED_IDLE' || state === 'CONFLICT') {
+  // Do NOT restart on CONFLICT — takeoverOnConflict:true handles it automatically.
+  // Restarting on CONFLICT would cancel the takeover and create a restart loop.
+  if (state === 'UNPAIRED' || state === 'UNPAIRED_IDLE') {
     restartClient(`change_state:${state}`);
+  } else {
+    console.log(`[client-event] State changed: ${state}`);
   }
 });
 
