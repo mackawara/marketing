@@ -1,5 +1,5 @@
 const timeDelay = require('../UTILS/timeDelay');
-const { client, MessageMedia, restartClient, ensureClientReady } = require('../config/wwebjsConfig');
+const { client, MessageMedia, restartClient } = require('../config/wwebjsConfig');
 let advertMessages = require('../adverts');
 const contacts = require('../models/busContacts');
 const { getRandomFileFromDrive } = require('./googleDrive');
@@ -42,15 +42,7 @@ const isRetryableSendError = error => {
 
 const safeSendMessage = async (chatId, payload, options = {}, maxRetries = 3) => {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    const ready = await ensureClientReady();
-    if (!ready) {
-      console.warn(`[safeSend] Client not ready (attempt ${attempt}/${maxRetries}) for ${chatId}.`);
-      // Always try restart — restartClient handles cooldown/in-progress guards
-      await restartClient(`not-ready-before-send:${chatId}`);
-      await timeDelay(5000 * attempt);
-      continue;
-    }
-
+   
     try {
       return await client.sendMessage(chatId, payload, options);
     } catch (error) {

@@ -1,5 +1,6 @@
 const { Client, LocalAuth, MessageMedia } = require("whatsapp-web.js");
 const config = require("../config");
+const timeDelay = ms => new Promise(res => setTimeout(res, ms));
 console.log(process.env.NODE_ENV);
 
 // Determine if running in Docker (via environment variable set in Dockerfile)
@@ -85,6 +86,7 @@ const restartClient = async (reason = 'unknown') => {
   } catch (err) {
     console.warn('[client-restart] client.destroy() failed:', err.message);
   }
+  await timeDelay(6000); // Ensure all async cleanup is done before exit
   process.exit(1);
 };
 
