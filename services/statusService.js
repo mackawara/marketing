@@ -68,13 +68,14 @@ const postStatus = async () => {
                 unsafeMime: true,
             });
 
-            const randomCaption =
+          /*   const randomCaption =
                 advertMessages[Math.floor(Math.random() * advertMessages.length)];
 
             const caption = mentionText
                 ? `${randomCaption}\n\n${mentionText}`
                 : randomCaption;
-
+ */
+const caption= 'We are located at Shop 1, Pick N Pay Mall, 1st FLoor (Upstairs from TM), Ground Entrance Between Post Office and Bank ABC ATM'
             await client.sendMessage('status@broadcast', media, {
                 caption,
                 ...(mentionContacts.length > 0 && { mentions: mentionContacts }),

@@ -55,7 +55,7 @@ let lastRestartAt = 0;
 let lastRestartReason = 'none';
 let heartbeatIntervalRef = null;
 let isClientReady = false; // set true only when 'ready' event fires
-const RESTART_COOLDOWN_MS = 20000;
+const RESTART_COOLDOWN_MS = 120000;
 
 // Called from index.js when the 'ready' event fires
 const setClientReady = (value) => {

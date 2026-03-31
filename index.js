@@ -75,7 +75,7 @@ connectDB().then(async () => {
     });
 
     // Post WhatsApp status daily at 19:00
-    cron.schedule('25 16 * * *', async () => {
+    cron.schedule('25 16,11,9 * * *', async () => {
       try {
         await postStatus();
       } catch (err) {
@@ -93,14 +93,14 @@ connectDB().then(async () => {
     });
 
     // Post tech tip to channel daily at 09:00
-    cron.schedule('0 9 * * *', async () => {
-      try {
-        await channelService.postRandomTechTip();
-        console.log('Daily tech tip posted to channel');
-      } catch (error) {
-        console.error('Failed to post tech tip:', error);
-      }
-    });
+    // cron.schedule('0 9 * * *', async () => {
+    //   try {
+    //     await channelService.postRandomTechTip();
+    //     console.log('Daily tech tip posted to channel');
+    //   } catch (error) {
+    //     console.error('Failed to post tech tip:', error);
+    //   }
+    // });
 
     // Initial harvest 30s after startup
     setTimeout(() => harvestGroupContacts().catch(err => console.error('[startup:harvestGroupContacts] Unhandled error:', err)), 30000);
