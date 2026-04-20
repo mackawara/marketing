@@ -11,7 +11,7 @@ const messages=[]
 
   try {
     const response = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
+      model: 'gpt-3.5',
       messages: messages,
       temperature: 0.5,
       max_tokens: 300,

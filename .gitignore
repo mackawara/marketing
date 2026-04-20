@@ -135,4 +135,4 @@ dist
 github_actions.cer
 
 services/assets/
-.claude/worktrees/
+.claude/worktrees/*

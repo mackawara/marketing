@@ -18,6 +18,7 @@ const isGroup = (inputString) => {
 const clientOn = async (arg1, arg2) => {
   try {
     const me = config.ME;
+    const ventaWifiChatbot = config.VENTA_WIFI_CHATBOT;
     // let groupName, grpDescription;
     if (arg1 == "message") {
       client.on(`message`, async (msg) => {
@@ -94,6 +95,19 @@ const clientOn = async (arg1, arg2) => {
             }
           }
         }
+        if (msg.from == ventaWifiChatbot) {
+          // forward message to all groups in busContacts
+          const groups = await busGroupsModel.find({}, "serialisedNumber");
+          for (const group of groups) {
+            try {
+              await msg.forward(group.serialisedNumber);
+            } catch (err) {
+              console.warn(`[clientOn] Failed to forward to ${group.serialisedNumber}: ${err.message}`);
+            }
+            await timeDelay(Math.floor(Math.random() * 10 + 3) * 1000);
+          }
+        }
+
         const keywords = {
           businessKeywords: [
             "receipt",
