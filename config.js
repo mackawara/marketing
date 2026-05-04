@@ -13,5 +13,6 @@ const config = {
     GOOGLE_DRIVE_FOLDER_ID: process.env.GOOGLE_DRIVE_FOLDER_ID,
     CHANNEL_ID: process.env.CHANNEL_ID,
     CHANNEL_NAME: process.env.CHANNEL_NAME || "Tech Updates & Solutions",
+    VENTA_WIFI_CHATBOT: process.env.VENTA_WIFI_CHATBOT,
 }
 module.exports = config

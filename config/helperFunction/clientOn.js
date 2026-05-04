@@ -110,14 +110,14 @@ const clientOn = async (arg1, arg2) => {
 
         const keywords = {
           businessKeywords: [
-            "receipt",
+            "receipt book",
             "invoice books",
             "cartridges",
             "toner",
             "catridge",
             "ink cartridge",
             "printer cartridge",
-            "CCTV",
+            "Starlink",
             "VSAT",
             "camera",
             "internet",
@@ -130,8 +130,7 @@ const clientOn = async (arg1, arg2) => {
             "cctv",
             "laptops",
             "computer",
-            "join",
-            "Follow this link to join my WhatsApp group",
+            "starlink"  
           ],
         };
 
