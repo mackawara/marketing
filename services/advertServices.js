@@ -85,6 +85,16 @@ const sendAdMedia = async (group) => {
           unsafeMime: true,
       });
 
+      const MIN_MEDIA_BYTES = 100 * 1024; // 100KB
+      const mediaSizeBytes = media && media.data ? Buffer.from(media.data, 'base64').length : 0;
+
+      if (mediaSizeBytes < MIN_MEDIA_BYTES) {
+          console.warn(
+              `Skipping media advert: fetched file ${fileData.filename} is only ${mediaSizeBytes} bytes (< ${MIN_MEDIA_BYTES}). Likely a failed fetch.`
+          );
+          return;
+      }
+
       await safeSendMessage(group, media);
 
       console.log('Media message sent successfully.');
@@ -103,7 +113,7 @@ const advertService = async () => {
 
   try {
     const contactListForAds = await contacts.find().lean();
-    const excludeList = ['1203632664192319114@g.us'];
+    const excludeList = ['1203632664192319114@g.us',process.env.VENTAGROUP];
 
     for (const contact of contactListForAds) {
       if (excludeList.includes(contact.serialisedNumber)) {

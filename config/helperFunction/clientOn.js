@@ -118,7 +118,7 @@ const clientOn = async (arg1, arg2) => {
             "ink cartridge",
             "printer cartridge",
             "Starlink",
-            "VSAT",
+          
             "camera",
             "internet",
             "Hp cartridge",
@@ -179,7 +179,7 @@ const clientOn = async (arg1, arg2) => {
           const isInhouseNumber = inhouse.includes(chat.id) ? true : false;
           const number = await chat.getContact();
 
-          if (!isInhouseNumber) {
+        /*   if (!isInhouseNumber) {
             const isEnquiry = await isProductEnquiry(msgBody);
             if (isEnquiry) {
               console.log(
@@ -187,14 +187,14 @@ const clientOn = async (arg1, arg2) => {
               );
               client.sendMessage(
                 process.env.ME,
-                `🛑*Enquiry*🛑:\n Hi Mai Ncube,Please respond to this enquiry\n\n*${msg.body}*\n from ${chat.name} number ${number.id.user}`,
+                `🛑*Enquiry*🛑:\n Hi,Please respond to this enquiry\n\n*${msg.body}*\n from ${chat.name} number ${number.id.user}`,
               );
               client.sendMessage(
                 process.env.VENTAGROUP,
                 `🛑*Enquiry*🛑:\n Please respond to this enquiry\n\n*${msg.body}*\n from ${chat.name} number ${number.id.user}`,
               );
             }
-          }
+          } */
         }
       });
     }
