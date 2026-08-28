@@ -1,52 +1,37 @@
-name: build and deploy nodejs app
+name: Deploy with PM2
 
 on:
   push:
-    branches: [main, staging]
-    paths:
-      - src/**
-      - 'package.json'
-      - .github/**
-      - './index.js'
-      - index.js
-      - adverts.js
-      - config/**
+    branches: [main]
 
-env:
-  ME: ${{secrets.ME}}
-  EXECPATH: ${{secrets.EXECPATH}}
-  MARKETING_DB_STRING: ${{secrets.MARKETING_DB_STRING}}
-  CLOUDINARY_NAME: ${{secrets.CLOUDINARY_NAME}}
-  CLOUDINARY_KEY: ${{secrets.CLOUDINARY_KEY}}
-  CLOUDINARY_SECRET: ${{secrets.CLOUDINARY_SECRET}}
-  PORT: ${{secrets.PORT}}
-  NODE_ENV: ${{secrets.NODE_ENV}}
-  DOCKERHUB_USERNAME: ${{secrets.DOCKER_HUB_USERNAME}}
-  DOCKERHUB_PASSWORD: ${{secrets.DOCKER_HUB_PASSWORD}}
-  ORACLE_VM_PRIVATE_KEY: ${{secrets.ORACLE_PRIVATE_KEY}}
-  ORACLE_VM_URL: ${{secrets.ORACLE_VM_URL}}
-  ORACLE_USERNAME: ${{secrets.ORACLE_USERNAME}}
+permissions: {}
+
+concurrency:
+  group: marketing-production
+  cancel-in-progress: false
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-      - name: Set permissions for private key
-        run: |
-          echo "${{ secrets.ORACLE_VM_PRIVATE_KEY }}" > nothandoracle.key
-          chmod 600 nothandoracle.key
-      - name: SSH into EC2 instance and navigate to repo and reset branch to main
-        run: |
-          ssh -o StrictHostKeyChecking=no -i  nothandoracle.key $ORACLE_USERNAME@$ORACLE_VM_URL 'cd repos/marketing  && git fetch --all && git reset --hard origin/main'
-      - name: use npm install to install any additional packages
-        run: |
-          ssh -o StrictHostKeyChecking=no -i  nothandoracle.key $ORACLE_USERNAME@$ORACLE_VM_URL 'cd repos/marketing && rm -rf node_modules  && npm install'
-      - name: Restart app using pm2
-        run: |
-          ssh -o StrictHostKeyChecking=no -i  nothandoracle.key $ORACLE_USERNAME@$ORACLE_VM_URL 'pm2 restart marketing'
+    timeout-minutes: 10
 
-      - name: Use npm to build the app
+    steps:
+      - name: Pull main and restart PM2
+        env:
+          SSH_HOST: ${{ secrets.ORACLE_VM_URL }}
+          SSH_USER: ${{ secrets.ORACLE_USERNAME }}
+          SSH_PRIVATE_KEY: ${{ secrets.ORACLE_VM_PRIVATE_KEY }}
         run: |
-          ssh -o StrictHostKeyChecking=no -i  nothandoracle.key $ORACLE_USERNAME@$ORACLE_VM_URL 'cd repos/marketing && cat package.json'
+          set -euo pipefail
+
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/oracle_vm_key"
+          chmod 600 "$HOME/.ssh/oracle_vm_key"
+          trap 'rm -f "$HOME/.ssh/oracle_vm_key"' EXIT
+
+          ssh-keyscan -T 10 -H "$SSH_HOST" > "$HOME/.ssh/known_hosts"
+
+          ssh -o IdentitiesOnly=yes \
+            -i "$HOME/.ssh/oracle_vm_key" \
+            "$SSH_USER@$SSH_HOST" \
+            'cd "$HOME/repos/marketing" && git pull --ff-only origin main && pm2 restart marketing'
