@@ -34,4 +34,14 @@ jobs:
           ssh -o IdentitiesOnly=yes \
             -i "$HOME/.ssh/oracle_vm_key" \
             "$SSH_USER@$SSH_HOST" \
-            'cd "$HOME/repos/marketing" && git pull --ff-only origin main && pm2 restart marketing'
+            'set -euo pipefail
+             cd "$HOME/repos/marketing"
+             git pull --ff-only origin main
+             # Without this a commit that changes package.json deploys green and
+             # then crash-loops on the server with MODULE_NOT_FOUND.
+             npm ci --omit=dev
+             pm2 restart marketing --update-env
+             # Give the client a chance to boot, then confirm it actually stayed up
+             # rather than reporting success on a process that is crash-looping.
+             sleep 60
+             pm2 describe marketing | grep -q "status.*online"'

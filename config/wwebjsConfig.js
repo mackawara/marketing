@@ -12,12 +12,18 @@ const client = new Client({
   }),
   restartOnAuthFail: true,
   takeoverOnConflict: true,
-  takeoverTimeoutMs: 0,
-  webVersionCache: {
-    type: "remote",
-    remotePath:
-      "https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html",
-  },
+  // Give a human using the account elsewhere time to finish before grabbing the
+  // session back. takeoverTimeoutMs:0 caused instant tug-of-war with any other
+  // open WhatsApp Web tab, tearing the execution context mid-operation.
+  takeoverTimeoutMs: 20000,
+  // NOTE: do not re-add a pinned `webVersionCache` here without checking the URL
+  // resolves. The previous pin (wa-version .../html/2.2412.54.html) had been
+  // returning HTTP 404 for months — wa-version moved to the 2.3000.x series and
+  // deleted the 2.2412.x files. RemoteWebCache.resolve() swallows a 404 and
+  // returns null when `strict` is false (the default), so the client silently
+  // ran unpinned while appearing pinned. Letting the library resolve the version
+  // itself is the upstream-recommended behaviour. If you ever do pin again, set
+  // `strict: true` so a dead URL fails loudly at boot instead of degrading.
   puppeteer: {
     // Use system Chromium in Docker, otherwise let Puppeteer use its bundled Chrome
     executablePath: config.NODE_ENV === "production" ? config.EXECPATH : undefined,
@@ -46,6 +52,13 @@ const client = new Client({
       "--ignore-certificate-errors-spki-list",
       "--disable-features=IsolateOrigins,site-per-process",
       "--log-level=3",
+      // Bound Chromium's memory growth. PM2's max_memory_restart only measures
+      // the Node process, which is not where this app's memory lives — the
+      // renderer is. Without these the box drifts to OOM and the kernel kills
+      // Chromium out from under a still-running Node process.
+      "--js-flags=--max-old-space-size=512",
+      "--renderer-process-limit=2",
+      "--disable-backgrounding-occluded-windows",
     ],
   },
 });

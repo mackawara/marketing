@@ -18,7 +18,11 @@ const busGroupsSchema = new mongoose.Schema({
   serialisedNumber: {
     type: String,
     required: true,
-    Unique: true,
+    // Was `Unique` (capital U). Mongoose ignores unknown schema keys, so no
+    // index was ever built and duplicate group rows accumulated — which meant
+    // advertService could broadcast to the same group more than once per run.
+    // De-duplicate the collection before deploying or the index build fails.
+    unique: true,
   },
 });
 

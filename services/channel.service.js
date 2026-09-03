@@ -129,7 +129,7 @@ const channelService = {
 
       // Generate tip using OpenAI
       const tipResponse = await openai.chat.completions.create({
-        model: "gpt-4",
+        model: "gpt-4o-mini",
         messages: [
           {
             role: "system",
@@ -149,7 +149,7 @@ const channelService = {
 
       // Create image prompt from the tip
       const imagePromptResponse = await openai.chat.completions.create({
-        model: "gpt-4",
+        model: "gpt-4o-mini",
         messages: [
           {
             role: "system",

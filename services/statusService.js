@@ -4,8 +4,10 @@ const GroupContact = require('../models/contacts');
 let advertMessages = require('../adverts');
 
 const timeDelay = require('../UTILS/timeDelay');
+const mapLimit = require('../UTILS/mapLimit');
 const STATUS_COUNT = 5;
 const MENTION_COUNT = 50;
+const RESOLVE_CONCURRENCY = 5;
 
 /**
  * Fetches MENTION_COUNT random unique contacts from DB and resolves
@@ -19,8 +21,12 @@ const getRandomMentionContacts = async () => {
     // Deduplicate before resolving
     const unique = [...new Map(dbContacts.map((c) => [c.contactId, c])).values()];
 
-    const results = await Promise.allSettled(
-        unique.map((c) => client.getContactById(c.contactId))
+    // Bounded — resolving 100 contacts at once against a single Chromium page
+    // is a reliable way to destroy the execution context.
+    const results = await mapLimit(
+        unique,
+        RESOLVE_CONCURRENCY,
+        (c) => client.getContactById(c.contactId)
     );
 
     const resolved = results

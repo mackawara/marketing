@@ -50,8 +50,5 @@ COPY . /code
 # Create directory for WhatsApp session data with proper permissions
 RUN mkdir -p /code/.wwebjs_auth && chmod 777 /code/.wwebjs_auth
 
-# Build the project
-RUN npm run build
-
 EXPOSE 4000
 CMD ["npm", "start"]
