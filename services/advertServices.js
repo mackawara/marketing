@@ -40,30 +40,40 @@ const isRetryableSendError = error => {
   );
 };
 
+// Retry in-process first. The previous version called restartClient() on the
+// first transient error, and restartClient() ends in process.exit(1) — so
+// attempts 2 and 3 were unreachable and one detached-frame blip on a single
+// recipient killed the whole broadcast. A transient error is almost always one
+// message, not one session, and a retry is far cheaper than a cold start.
 const safeSendMessage = async (chatId, payload, options = {}, maxRetries = 3) => {
+  let lastError;
+
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
-   
     try {
       return await client.sendMessage(chatId, payload, options);
     } catch (error) {
-      const retryable = isRetryableSendError(error);
-      if (!retryable || attempt === maxRetries) {
-        if (retryable) {
-          await restartClient(`retryable-send-failure:${chatId}`);
-        }
+      lastError = error;
+
+      if (!isRetryableSendError(error)) {
         throw error;
       }
 
       console.warn(
-        `[safeSend] Transient send error (attempt ${attempt}/${maxRetries}) for ${chatId}: ${error.message}.`
+        `[safeSend] Transient send error (attempt ${attempt}/${maxRetries}) for ${chatId}: ${error.message}`
       );
-      // Always restart on transient errors — restartClient guards prevent double-restarts
-      await restartClient(`transient-send-error:${chatId}`);
-      await timeDelay(5000 * attempt);
+
+      if (attempt < maxRetries) {
+        await timeDelay(3000 * attempt);
+      }
     }
   }
 
-  throw new Error(`Unable to send message to ${chatId} after ${maxRetries} attempts.`);
+  // Only now is the session itself genuinely suspect.
+  console.error(
+    `[safeSend] ${maxRetries} consecutive transient failures for ${chatId} — escalating to client restart.`
+  );
+  await restartClient(`send-failed-after-${maxRetries}-attempts:${chatId}`);
+  throw lastError;
 };
 
 const sendAdMedia = async (group) => {
@@ -115,6 +125,12 @@ const advertService = async () => {
     const contactListForAds = await contacts.find().lean();
     const excludeList = ['1203632664192319114@g.us',process.env.VENTAGROUP];
 
+    // One failing recipient should not end the run, but a run where every
+    // recipient fails means the session is dead — stop rather than grind
+    // through the whole list retrying against a broken client.
+    const MAX_CONSECUTIVE_FAILURES = 5;
+    let consecutiveFailures = 0;
+
     for (const contact of contactListForAds) {
       if (excludeList.includes(contact.serialisedNumber)) {
         console.log(`Skipping excluded group: ${contact.serialisedNumber}`);
@@ -128,8 +144,20 @@ const advertService = async () => {
 
       try {
         await safeSendMessage(contact.serialisedNumber, randomAdvert);
+        consecutiveFailures = 0;
       } catch (error) {
-        console.error(`Error sending text advert to ${contact.serialisedNumber}:`, error);
+        consecutiveFailures++;
+        console.error(
+          `Error sending text advert to ${contact.serialisedNumber} (${consecutiveFailures} consecutive):`,
+          error.message
+        );
+
+        if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+          console.error(
+            `[advertService] ${consecutiveFailures} consecutive send failures — aborting run.`
+          );
+          break;
+        }
       }
       await timeDelay(Math.floor(Math.random() * 10 + 3) * 1000);
     }

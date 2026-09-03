@@ -11,26 +11,32 @@ const messages=[]
 
   try {
     const response = await openai.chat.completions.create({
-      model: 'gpt-3.5',
+      // Was 'gpt-3.5', which has never been a valid model id — every call 404'd
+      // and the catch below turned it into a silent "false".
+      model: 'gpt-4o-mini',
       messages: messages,
-      temperature: 0.5,
-      max_tokens: 300,
-      frequency_penalty: 1.5,
-      presence_penalty: 1.89,
+      temperature: 0,
+      // A binary classifier needs one word, and the frequency/presence
+      // penalties that were here actively discourage repeating "true"/"false".
+      max_tokens: 5,
     });
-    //check if there is any response
-    if (response) {
-      if ('choices' in response) {
-        console.log(response.choices[0]['message']['content'].toLowerCase())
-       const isEnquiry= response.choices[0]['message']['content'].toLowerCase()==='true'?true:false
-        console.log(`Message: ${prompt}, isEnquiry: ${isEnquiry}`)
-        return isEnquiry;
-      }
-    } else {
+
+    const answer = response?.choices?.[0]?.message?.content;
+    if (typeof answer !== 'string') {
+      console.warn('[isProductEnquiry] No usable completion returned.');
       return false;
     }
+
+    // Tolerate trailing punctuation and casing ("True.", "TRUE").
+    const isEnquiry = answer.trim().toLowerCase().startsWith('true');
+    console.log(`[isProductEnquiry] "${prompt}" -> ${isEnquiry}`);
+    return isEnquiry;
   } catch (error) {
-    console.log(error);
+    // Distinguish "the model said no" from "we never reached the model" —
+    // previously both returned false and looked identical in the logs.
+    console.error(
+      `[isProductEnquiry] Classification failed (treating as not an enquiry): ${error.message}`
+    );
     return false;
   }
 };

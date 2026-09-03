@@ -1,6 +1,12 @@
 const { client } = require("../config/wwebjsConfig");
 const GroupContact = require("../models/contacts");
 const config = require("../config");
+const mapLimit = require("../UTILS/mapLimit");
+
+// Every lookup is a page.evaluate against one Chromium page, and every save is
+// a round-trip to Mongo. Both were previously fired all at once.
+const LOOKUP_CONCURRENCY = 5;
+const SAVE_CONCURRENCY = 20;
 
 /**
  * Harvests contacts from all WhatsApp groups.
@@ -50,42 +56,52 @@ const harvestGroupContacts = async () => {
       }
     }
 
-    const lookupTasks = [];
+    const idsNeedingLookup = [];
     for (const [contactId, data] of contactMap) {
-      if (!data.needsLookup) continue;
-      lookupTasks.push(
-        (async () => {
+      if (data.needsLookup) idsNeedingLookup.push(contactId);
+    }
+
+    if (idsNeedingLookup.length) {
+      console.log(
+        `🔎 Resolving ${idsNeedingLookup.length} contacts (${LOOKUP_CONCURRENCY} at a time)...`
+      );
+
+      const lookupResults = await mapLimit(
+        idsNeedingLookup,
+        LOOKUP_CONCURRENCY,
+        async (contactId) => {
+          // Derive the number from the id up front so it is always populated —
+          // contact.number is undefined for contacts WhatsApp won't resolve,
+          // and `phone` carries a unique index.
+          const fallbackPhone = contactId.replace("@c.us", "");
+
           try {
             const contact = await client.getContactById(contactId);
             return {
               contactId,
               data: {
                 pushname: contact.pushname || null,
-                phone: contact.number,
+                phone: contact.number || fallbackPhone,
                 contactId: contactId,
                 isBusiness: contact.isBusiness || false,
                 savedName: contact.name || null,
               },
             };
           } catch (_) {
-            const phone = contactId.replace("@c.us", "");
             return {
               contactId,
               data: {
                 pushname: null,
-                phone: phone,
+                phone: fallbackPhone,
                 contactId: contactId,
                 isBusiness: false,
                 savedName: null,
               },
             };
           }
-        })()
+        }
       );
-    }
 
-    if (lookupTasks.length) {
-      const lookupResults = await Promise.allSettled(lookupTasks);
       for (const result of lookupResults) {
         if (result.status !== "fulfilled") continue;
         const existing = contactMap.get(result.value.contactId);
@@ -104,34 +120,48 @@ const harvestGroupContacts = async () => {
     let updated = 0;
     let errors = 0;
 
-    const saveTasks = [];
-    for (const [contactId, data] of contactMap) {
-      saveTasks.push(
-        GroupContact.findOneAndUpdate(
-          { contactId: contactId },
-          {
-            $set: {
-              pushname: data.pushname,
-              phone: data.phone,
-              contactId: data.contactId,
-              isBusiness: data.isBusiness,
-              savedName: data.savedName,
-              groupsInCommon: data.groups,
-              lastUpdated: new Date(),
-            },
-            $setOnInsert: {
-              firstSeen: new Date(),
-            },
-          },
-          { upsert: true, new: true }
-        ).then((result) => ({ result, contactId }))
-      );
-    }
+    // Anything whose firstSeen lands at or after this mark was inserted by this
+    // run. The previous check looked at `createdAt`, which this schema never
+    // sets (no timestamps option), so "new" was always reported as 0.
+    const runStartedAt = new Date();
 
-    const saveResults = await Promise.allSettled(saveTasks);
+    const saveResults = await mapLimit(
+      [...contactMap.entries()],
+      SAVE_CONCURRENCY,
+      async ([contactId, data]) => {
+        try {
+          const doc = await GroupContact.findOneAndUpdate(
+            { contactId: contactId },
+            {
+              $set: {
+                pushname: data.pushname,
+                phone: data.phone,
+                contactId: data.contactId,
+                isBusiness: data.isBusiness,
+                savedName: data.savedName,
+                groupsInCommon: data.groups,
+                lastUpdated: new Date(),
+              },
+              $setOnInsert: {
+                firstSeen: runStartedAt,
+              },
+            },
+            { upsert: true, new: true }
+          );
+
+          return { contactId, inserted: doc?.firstSeen >= runStartedAt };
+        } catch (err) {
+          // Rethrow with the id attached — a raw Mongo error carries no
+          // indication of which contact it came from.
+          throw Object.assign(err, { contactId });
+        }
+      },
+      0
+    );
+
     for (const result of saveResults) {
       if (result.status === "fulfilled") {
-        if (result.value.result?.createdAt) {
+        if (result.value.inserted) {
           saved++;
         } else {
           updated++;
@@ -150,18 +180,22 @@ const harvestGroupContacts = async () => {
 
     // Notify admin
     try {
-      client.sendMessage(config.ME, summary);
-    } catch (_) {}
+      await client.sendMessage(config.ME, summary);
+    } catch (err) {
+      console.warn("[harvest] Could not send summary to admin:", err.message);
+    }
 
     return { total: contactMap.size, saved, updated, errors };
   } catch (err) {
     console.error("❌ Error harvesting group contacts:", err);
     try {
-      client.sendMessage(
+      await client.sendMessage(
         config.ME,
         `❌ Contact harvest failed: ${err.message}`
       );
-    } catch (_) {}
+    } catch (notifyErr) {
+      console.warn("[harvest] Could not notify admin of failure:", notifyErr.message);
+    }
   }
 };
 

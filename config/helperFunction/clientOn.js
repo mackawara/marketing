@@ -52,10 +52,17 @@ const clientOn = async (arg1, arg2) => {
 
             saveMediaToFile(media, uniqueName);
           } else if (msg.body.toLowerCase() === "broadcast") {
-            advertService();
+            // Deliberately not awaited — this is a long-running job kicked off
+            // by an admin command. The explicit catch is what makes that a
+            // choice rather than an unhandled rejection.
+            advertService().catch((err) =>
+              console.error("[clientOn:broadcast] advertService failed:", err),
+            );
           } else if (msg.body.toLowerCase() === "harvest") {
-            client.sendMessage(me, "🔍 Starting contact harvest...");
-            harvestGroupContacts();
+            await client.sendMessage(me, "🔍 Starting contact harvest...");
+            harvestGroupContacts().catch((err) =>
+              console.error("[clientOn:harvest] harvestGroupContacts failed:", err),
+            );
           } else if (msg.body.toLowerCase() === "channel-create") {
             // Create channel only when admin triggers it
             try {
@@ -149,21 +156,34 @@ const clientOn = async (arg1, arg2) => {
               date: new Date().toISOString().slice(0, 10),
             });
             try {
-              newContact.save();
+              // Was un-awaited, so this try/catch could never catch anything —
+              // the rejection landed after the block had already exited.
+              await newContact.save();
             } catch (err) {
-              console.log(err.data);
+              console.error(
+                `[clientOn] Could not save group ${chat.id._serialized}:`,
+                err.message,
+              );
             }
           }
-          msgBody.split(" ").forEach((word) => {
-            if (keywords.businessKeywords.includes(word)) {
-              if (isProductEnquiry(msgBody)) {
-                client.sendMessage(
-                  me,
-                  `Business keyword alert:\n ${msg.body} from Group ${chat.name} from ${msg.author}`,
-                );
-              }
+          // NOTE: the keyword matching itself is unchanged (see F14) — it still
+          // splits on spaces and compares case-sensitively, so multi-word
+          // keywords cannot match. What changed here is the await: this ran
+          // inside a synchronous forEach, so `isProductEnquiry(msgBody)` was a
+          // Promise, which is always truthy — the AI's answer was discarded and
+          // every single-word keyword hit alerted regardless.
+          for (const word of msgBody.split(" ")) {
+            if (!keywords.businessKeywords.includes(word)) continue;
+
+            if (await isProductEnquiry(msgBody)) {
+              await client.sendMessage(
+                me,
+                `Business keyword alert:\n ${msg.body} from Group ${chat.name} from ${msg.author}`,
+              );
             }
-          });
+            // One alert per message, not one per matching word.
+            break;
+          }
           //grpOwner = chat.owner.user;
         } else if (
           !chat.isGroup && // isgroupis not working
@@ -173,8 +193,13 @@ const clientOn = async (arg1, arg2) => {
           !msg.hasMedia
         ) {
           // this is a message to the inbox whic could be an enquiry
-          chat.markUnread();
-          timeDelay(3000);
+          try {
+            await chat.markUnread();
+          } catch (err) {
+            console.warn(`[clientOn] markUnread failed: ${err.message}`);
+          }
+          // Was called without await, so it was a no-op that read like a delay.
+          await timeDelay(3000);
           const inhouse = [process.env.ME, process.env.VENTA];
           const isInhouseNumber = inhouse.includes(chat.id) ? true : false;
           const number = await chat.getContact();
@@ -198,15 +223,32 @@ const clientOn = async (arg1, arg2) => {
         }
       });
     }
-    //run when group is left
+    //run when group is joined
     else if (arg1 == "group-join") {
       client.on("group_join", (notification) => {
+        console.log(
+          `[clientOn] group_join in ${notification.chatId} — no action configured.`,
+        );
         /*  client.sendMessage(
           notification.id.participant,
           `welcome to ${}}Here are the group rules for your convenience.... \n`
         )  */
         // notification.reply("User joined.");
       });
+    }
+    //run when group is left
+    else if (arg1 == "group-leave") {
+      client.on("group_leave", (notification) => {
+        console.log(
+          `[clientOn] group_leave in ${notification.chatId} — no action configured.`,
+        );
+      });
+    } else {
+      // Previously an unrecognised argument fell through and registered nothing
+      // at all, silently. Say so instead.
+      console.warn(
+        `[clientOn] No handler registered — unrecognised event "${arg1}".`,
+      );
     } /* else if (arg1 == 'before' && arg2 == 'after') {
     client.on('message_revoke_everyone', async (after, before) => {
       // Fired whenever a message is deleted by anyone (including you)
