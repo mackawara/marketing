@@ -16,7 +16,7 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - name: Pull main and restart PM2
+      - name: Pull main and start or restart PM2
         env:
           SSH_HOST: ${{ secrets.ORACLE_VM_URL }}
           SSH_USER: ${{ secrets.ORACLE_USERNAME }}
@@ -40,8 +40,9 @@ jobs:
              # Without this a commit that changes package.json deploys green and
              # then crash-loops on the server with MODULE_NOT_FOUND.
              npm ci --omit=dev
-             pm2 restart marketing --update-env
+             pm2 startOrRestart ecosystem.config.js --only marketing --update-env
              # Give the client a chance to boot, then confirm it actually stayed up
              # rather than reporting success on a process that is crash-looping.
              sleep 60
-             pm2 describe marketing | grep -q "status.*online"'
+             pm2 describe marketing | grep -q "status.*online"
+             pm2 save'
