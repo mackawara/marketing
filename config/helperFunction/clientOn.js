@@ -5,6 +5,7 @@ const isProductEnquiry = require("../isProductEnquiry");
 const { advertService } = require("../../services/advertServices");
 const { harvestGroupContacts } = require("../../services/harvestContacts");
 const channelService = require("../../services/channel.service");
+const { STAFF_REMINDERS } = require("../../services/staffReminders");
 const busGroupsModel = require("../../models/busContacts");
 const saveMediaToFile = require("../../UTILS/saveImages");
 const fs = require("fs").promises;
@@ -63,6 +64,31 @@ const clientOn = async (arg1, arg2) => {
             harvestGroupContacts().catch((err) =>
               console.error("[clientOn:harvest] harvestGroupContacts failed:", err),
             );
+          } else if (msg.body.toLowerCase().startsWith("remind ")) {
+            // "remind standup" runs that reminder now — for testing a change or
+            // re-sending one that failed, without waiting for its schedule.
+            const name = (msg.body.trim().split(/\s+/)[1] || "").toLowerCase();
+            const reminder = STAFF_REMINDERS.find((r) => r.name === name);
+            if (!reminder) {
+              await client.sendMessage(
+                me,
+                `Unknown reminder "${name}". Available: ${STAFF_REMINDERS.map((r) => r.name).join(", ")}`,
+              );
+            } else {
+              reminder
+                .run()
+                .then((result) =>
+                  client.sendMessage(
+                    me,
+                    result
+                      ? `${reminder.name}: sent to ${result.sent}, failed for ${result.failed}.`
+                      : `${reminder.name}: done.`,
+                  ),
+                )
+                .catch((err) =>
+                  console.error(`[clientOn:remind] ${reminder.name} failed:`, err),
+                );
+            }
           } else if (msg.body.toLowerCase() === "channel-create") {
             // Create channel only when admin triggers it
             try {

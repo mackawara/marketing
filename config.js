@@ -14,5 +14,7 @@ const config = {
     CHANNEL_ID: process.env.CHANNEL_ID,
     CHANNEL_NAME: process.env.CHANNEL_NAME || "Tech Updates & Solutions",
     VENTA_WIFI_CHATBOT: process.env.VENTA_WIFI_CHATBOT,
+    STAFF_NUMBERS: process.env.STAFF_NUMBERS,
+    STANDUPLY_WEBHOOK_SECRET: process.env.STANDUPLY_WEBHOOK_SECRET,
 }
 module.exports = config

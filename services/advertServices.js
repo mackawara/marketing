@@ -167,4 +167,4 @@ const advertService = async () => {
     isAdvertServiceRunning = false;
   }
 };
-module.exports = { advertService, sendAdMedia };
+module.exports = { advertService, sendAdMedia, safeSendMessage };

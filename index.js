@@ -15,6 +15,8 @@ const contacts = require("./models/busContacts");
 const { advertService, sendAdMedia } = require("./services/advertServices");const { postStatus } = require('./services/statusService');const { initDriveCache } = require("./services/googleDrive");
 const { harvestGroupContacts } = require("./services/harvestContacts");
 const channelService = require("./services/channel.service");
+const { STAFF_REMINDERS } = require("./services/staffReminders");
+const { startWebhookServer } = require("./services/webhookServer");
 
 const timeDelay = require('./UTILS/timeDelay');
 const { cleanupBeforeInit } = require('./UTILS/cleanupChrome');
@@ -23,6 +25,10 @@ let isReadyBootstrapComplete = false;
 connectDB().then(async () => {
   // Fetch and log Google Drive file URLs at startup
   await initDriveCache();
+
+  // Receives Standuply results. Independent of the WhatsApp client, so
+  // submissions are still recorded while it is (re)starting.
+  startWebhookServer();
 
   console.log("initialising client, be patient");
   cleanupBeforeInit();
@@ -105,6 +111,18 @@ connectDB().then(async () => {
         console.error('[cron:harvestGroupContacts] Unhandled error:', err);
       }
     }, CRON_TZ);
+
+    // Staff reminders (STAFF_NUMBERS in .env): the 08:00 standup reminder, the
+    // 09:30 nudge and 10:00 summary. The list lives in services/staffReminders.js.
+    for (const reminder of STAFF_REMINDERS) {
+      cron.schedule(reminder.schedule, async () => {
+        try {
+          await reminder.run();
+        } catch (err) {
+          console.error(`[cron:staffReminder:${reminder.name}] Unhandled error:`, err);
+        }
+      }, CRON_TZ);
+    }
 
     // Proactive recycle in a quiet window, clear of every other schedule.
     // Chromium memory growth is invisible to PM2's max_memory_restart (that
