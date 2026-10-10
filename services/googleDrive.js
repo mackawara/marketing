@@ -20,7 +20,7 @@ const listFilesInFolder = async () => {
         pageSize: 1000,
     };
 
-    const response = await axios.get(url, { params });
+    const response = await axios.get(url, { params, timeout: 30000 });
     return response.data.files || [];
 };
 
@@ -35,7 +35,7 @@ const getFileUrl = (fileId) => {
 
 /**
  * Fetches all files from the Google Drive folder, caches them,
- * and logs each file URL. Call this once at startup.
+ * without logging credential-bearing download URLs. Also refreshed before statuses.
  */
 const initDriveCache = async () => {
     try {
@@ -52,15 +52,14 @@ const initDriveCache = async () => {
         console.log(`✅ Cached ${cachedFiles.length} files from Google Drive:`);
         cachedFiles.forEach((file) => {
             console.log(`   - ${file.filename} (${file.mimeType})`);
-            console.log(`     ${file.url}`);
         });
+        return true;
     } catch (error) {
-        console.error('❌ Failed to fetch files from Google Drive:', error.message);
+        console.error('❌ Failed to refresh Google Drive files; retaining the previous cache.');
         if (error.response) {
             console.error('   Status:', error.response.status);
-            console.error('   Data:', JSON.stringify(error.response.data, null, 2));
         }
-        cachedFiles = [];
+        return false;
     }
 };
 
@@ -68,13 +67,16 @@ const initDriveCache = async () => {
  * Picks a random file from the cached Google Drive files.
  * @returns {{url: string, filename: string, mimeType: string}|null}
  */
-const getRandomFileFromDrive = () => {
-    if (cachedFiles.length === 0) {
+const getRandomFileFromDrive = ({ mediaOnly = false } = {}) => {
+    const candidates = mediaOnly
+        ? cachedFiles.filter((file) => /^(image|video)\//.test(file.mimeType || ''))
+        : cachedFiles;
+    if (candidates.length === 0) {
         console.log('No files cached from Google Drive.');
         return null;
     }
 
-    const randomFile = cachedFiles[Math.floor(Math.random() * cachedFiles.length)];
+    const randomFile = candidates[Math.floor(Math.random() * candidates.length)];
     console.log(`Picked random file: ${randomFile.filename}`);
 
     return {

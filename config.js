@@ -16,5 +16,7 @@ const config = {
     VENTA_WIFI_CHATBOT: process.env.VENTA_WIFI_CHATBOT,
     STAFF_NUMBERS: process.env.STAFF_NUMBERS,
     STANDUPLY_WEBHOOK_SECRET: process.env.STANDUPLY_WEBHOOK_SECRET,
+    // Generic mention fields are not verified to trigger native Status notifications.
+    STATUS_MENTIONS_ENABLED: process.env.STATUS_MENTIONS_ENABLED === 'true',
 }
 module.exports = config

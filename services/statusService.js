@@ -1,117 +1,121 @@
-const { client, MessageMedia } = require('../config/wwebjsConfig');
-const { getRandomFileFromDrive } = require('./googleDrive');
-const GroupContact = require('../models/contacts');
-let advertMessages = require('../adverts');
-
 const timeDelay = require('../UTILS/timeDelay');
-const mapLimit = require('../UTILS/mapLimit');
+const { createStatusMentionOptions } = require('./statusMentions');
+
 const STATUS_COUNT = 5;
-const MENTION_COUNT = 50;
-const RESOLVE_CONCURRENCY = 5;
+const CAPTION = 'We are located at Shop 1, Pick N Pay Mall, 1st Floor (Upstairs from TM), Ground Entrance Between Post Office and Bank ABC ATM';
 
-/**
- * Fetches MENTION_COUNT random unique contacts from DB and resolves
- * them to WhatsApp contact objects suitable for use in `mentions`.
- */
-const getRandomMentionContacts = async () => {
-    const dbContacts = await GroupContact.aggregate([
-        { $sample: { size: MENTION_COUNT * 2 } }, // over-fetch to account for resolution failures
-    ]);
+// Dependencies are injected so tests never start Chromium or publish to WhatsApp.
+const createStatusPoster = ({
+    client, MessageMedia, refreshFiles, pickFile,
+    getMentionOptions = async () => [], delay = timeDelay, logger = console,
+}) => async ({
+    skipSlots = [],
+    onSlotSending = async () => {},
+    onSlotSent = async () => {},
+    onSlotFailed = async () => {},
+} = {}) => {
+    const skipped = new Set(skipSlots);
+    const result = { sent: 0, failed: 0, uncertain: 0, skipped: skipped.size };
+    if (skipped.size === STATUS_COUNT) return result;
 
-    // Deduplicate before resolving
-    const unique = [...new Map(dbContacts.map((c) => [c.contactId, c])).values()];
-
-    // Bounded — resolving 100 contacts at once against a single Chromium page
-    // is a reliable way to destroy the execution context.
-    const results = await mapLimit(
-        unique,
-        RESOLVE_CONCURRENCY,
-        (c) => client.getContactById(c.contactId)
-    );
-
-    const resolved = results
-        .filter((r) => r.status === 'fulfilled')
-        .map((r) => r.value)
-        .slice(0, MENTION_COUNT);
-
-    console.log(`📇 Resolved ${resolved.length} contacts for mentions`);
-    return resolved;
-};
-
-/**
- * Posts 5 random media files from Google Drive as WhatsApp statuses
- * with random advert captions. Scheduled to run daily at 19:00.
- */
-const postStatus = async () => {
-    console.log(`Posting ${STATUS_COUNT} daily status updates...`);
-
-    // Resolve mention contacts once, reuse across all status posts
-    let mentionContacts = [];
+    // Refresh daily as well as at startup, so an empty/stale cache can recover.
+    await refreshFiles();
+    let mentionOptions = [];
     try {
-        mentionContacts = await getRandomMentionContacts();
-    } catch (err) {
-        console.warn('⚠️ Could not fetch mention contacts:', err.message);
+        mentionOptions = await getMentionOptions();
+    } catch (_) {
+        logger.warn('[status] Mention selection failed; continuing without mentions.');
     }
 
-    const mentionText = mentionContacts
-        .map((c) => `@${c.id.user}`)
-        .join(' ');
+    for (let slot = 0; slot < STATUS_COUNT; slot++) {
+        if (skipped.has(slot)) continue;
 
-    for (let i = 0; i < STATUS_COUNT; i++) {
+        let media;
         try {
-            const fileData = getRandomFileFromDrive();
-
-            if (!fileData) {
-                console.log('No files available from Google Drive for status.');
-                return;
-            }
-
-            console.log(`[${i + 1}/${STATUS_COUNT}] Posting status with file: ${fileData.filename}`);
-            console.log(`File URL: ${fileData.url}`);
-
-            const media = await MessageMedia.fromUrl(fileData.url, {
-                filename: fileData.filename,
-                unsafeMime: true,
+            const file = pickFile({ mediaOnly: true });
+            if (!file) throw new Error('No photo/video files available in Google Drive.');
+            media = await MessageMedia.fromUrl(file.url, {
+                filename: file.filename, unsafeMime: true,
+                reqOptions: { signal: AbortSignal.timeout(30000) },
             });
-
-          /*   const randomCaption =
-                advertMessages[Math.floor(Math.random() * advertMessages.length)];
-
-            const caption = mentionText
-                ? `${randomCaption}\n\n${mentionText}`
-                : randomCaption;
- */
-const caption= 'We are located at Shop 1, Pick N Pay Mall, 1st FLoor (Upstairs from TM), Ground Entrance Between Post Office and Bank ABC ATM'
-            await client.sendMessage('status@broadcast', media, {
-                caption,
-                ...(mentionContacts.length > 0 && { mentions: mentionContacts }),
-            });
-
-            console.log(`✅ Status ${i + 1}/${STATUS_COUNT} posted with ${mentionContacts.length} mentions`);
-
-            // Delay between posts to avoid rate limiting
-            if (i < STATUS_COUNT - 1) {
-                const delay = Math.floor(Math.random() * 10 + 3) * 1000;
-                console.log(`Waiting ${delay / 1000}s before next status...`);
-                await timeDelay(delay);
+            if (!media?.data || !/^(image|video)\//.test(media.mimetype || '')) {
+                throw new Error('Downloaded file is not a usable photo/video.');
             }
-        } catch (err) {
-            console.error(`❌ Error posting status ${i + 1}/${STATUS_COUNT}:`, err);
-
-            if (
-                err.message &&
-                err.message.includes(
-                    'Protocol error (Runtime.callFunctionOn): Promise was collected'
-                )
-            ) {
-                console.warn('Detected possible broken session. Scheduled shutdown.');
-                setTimeout(() => process.exit(0), 5000);
-                return;
-            }
+        } catch (_) {
+            // Raw HTTP errors may contain the Drive API key. Persist only a safe reason.
+            await onSlotFailed(slot, new Error('Photo/video preparation failed. Check Drive availability and file types.'));
+            result.failed++;
+            logger.error(`[status] Slot ${slot + 1}: media preparation failed; eligible for retry.`);
+            continue;
         }
+
+        // A failed checkpoint must abort BEFORE sending. After this point an
+        // exception may mean WhatsApp accepted the post but the reply was lost.
+        await onSlotSending(slot);
+        let message;
+        try {
+            message = await client.sendMessage('status@broadcast', media, {
+                caption: CAPTION,
+                ...mentionOptions[slot],
+            });
+            if (!message?.id?._serialized) throw new Error('No status message id returned.');
+        } catch (_) {
+            result.uncertain++;
+            logger.error(`[status] Slot ${slot + 1}: send outcome unknown; check WhatsApp before resending.`);
+            // Leave the persisted slot as sending. The scheduler marks it uncertain.
+            // Stop using this session until the next scheduled attempt.
+            break;
+        }
+
+        // Do not swallow database errors and risk reporting an unrecorded send.
+        await onSlotSent(slot, message.id._serialized);
+        result.sent++;
+        logger.log(`[status] Slot ${slot + 1}: publish call returned a message id.`);
+        if (slot < STATUS_COUNT - 1) await delay(3000);
     }
 
-    console.log('✅ All status updates posted.');
+    logger.log(`[status] Batch: ${result.sent} recorded, ${result.failed} preparation failures, ${result.uncertain} uncertain, ${result.skipped} skipped.`);
+    return result;
 };
 
-module.exports = { postStatus };
+let poster;
+const postStatus = async (options) => {
+    if (!poster) {
+        const { client, MessageMedia } = require('../config/wwebjsConfig');
+        const { initDriveCache, getRandomFileFromDrive } = require('./googleDrive');
+        const GroupContact = require('../models/contacts');
+        const config = require('../config');
+        poster = createStatusPoster({
+            client, MessageMedia, refreshFiles: initDriveCache, pickFile: getRandomFileFromDrive,
+            getMentionOptions: async () => {
+                if (!config.STATUS_MENTIONS_ENABLED) return [];
+                console.warn('[status] Experimental contact/group mentions requested; notification delivery is unverified in whatsapp-web.js.');
+                const [contacts, groups] = await Promise.all([
+                    GroupContact.aggregate([{ $sample: { size: STATUS_COUNT * 10 } }]),
+                    client.getChats(),
+                ]);
+                // Shuffle groups so the same first groups are not picked every day.
+                for (let i = groups.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [groups[i], groups[j]] = [groups[j], groups[i]];
+                }
+                const selfIds = [client.info?.wid?._serialized].filter(Boolean);
+                if (selfIds.length) {
+                    try {
+                        const aliases = await client.getContactLidAndPhone(selfIds);
+                        for (const { lid, pn } of aliases) selfIds.push(lid, pn);
+                    } catch (_) {
+                        console.warn('[status] Could not resolve own LID; groups with unmatched membership will be skipped.');
+                    }
+                }
+                return createStatusMentionOptions({
+                    contacts, groups, selfIds: selfIds.filter(Boolean),
+                    statusCount: STATUS_COUNT,
+                });
+            },
+        });
+    }
+    return poster(options);
+};
+
+module.exports = { postStatus, createStatusPoster, STATUS_COUNT };
