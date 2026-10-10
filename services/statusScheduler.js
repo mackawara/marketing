@@ -25,6 +25,10 @@ function businessClock(date) {
 function createMongoStatusRunStore(StatusRun) {
   return {
     get: (id) => StatusRun.findById(id).lean().exec(),
+    findUnfinishedBefore: (date) => StatusRun.find({
+      businessDate: { $lt: date },
+      'slots.state': 'sending',
+    }).lean().exec(),
     save: (run) => StatusRun.replaceOne({ _id: run._id }, run, {
       upsert: true,
       runValidators: true,
@@ -45,6 +49,31 @@ function createStatusScheduler({ store, postStatus, isReady = () => true,
   now = () => new Date(), logger = console }) {
   let inFlight = false;
 
+  function quarantineSending(run) {
+    let changed = false;
+    for (const slot of run.slots) {
+      if (slot.state !== 'sending') continue;
+      slot.state = 'uncertain';
+      slot.lastError = 'Send started but its publish result was not saved. Check WhatsApp manually; automatic retry suppressed.';
+      logger.error(`[status-scheduler] ${run.businessDate} ${run.scheduledTime || '09:00'} slot ${slot.slot + 1}: ${slot.lastError}`);
+      changed = true;
+    }
+    return changed;
+  }
+
+  async function recoverPreviousRuns(date) {
+    const unfinished = await store.findUnfinishedBefore(date);
+    for (const run of unfinished) {
+      if (!quarantineSending(run)) continue;
+      // Recovery only records an ambiguous outcome; it never republishes an
+      // old batch. Run this even before 09:00 or while WhatsApp is disconnected.
+      run.state = 'needs_review';
+      run.nextAttemptAt = null;
+      run.updatedAt = now();
+      await store.save(run);
+    }
+  }
+
   async function runBatch(clock, schedule, startedAt) {
     // Preserve the original morning key so existing 09:00 records are reused.
     const runId = schedule.time === '09:00' ? clock.date : `${clock.date}@${schedule.time}`;
@@ -61,27 +90,16 @@ function createStatusScheduler({ store, postStatus, isReady = () => true,
       run.updatedAt = now();
       await store.save(run);
     };
-    const quarantineSending = () => {
-      let changed = false;
-      for (const slot of run.slots) {
-        if (slot.state !== 'sending') continue;
-        slot.state = 'uncertain';
-        slot.lastError = 'Send started but its publish result was not saved. Check WhatsApp manually; automatic retry suppressed.';
-        logger.error(`[status-scheduler] ${run.businessDate} ${schedule.time} slot ${slot.slot + 1}: ${slot.lastError}`);
-        changed = true;
-      }
-      return changed;
-    };
     const finish = async () => {
-      quarantineSending();
+      quarantineSending(run);
       const remaining = run.slots.some(isRetryable);
       if (remaining && run.attempts < MAX_ATTEMPTS) {
         run.state = 'pending';
         run.nextAttemptAt = new Date(now().getTime() + RETRY_DELAY_MS);
       } else {
         run.nextAttemptAt = null;
-        run.state = remaining ? 'exhausted'
-          : run.slots.some((slot) => slot.state === 'uncertain') ? 'needs_review' : 'completed';
+        run.state = run.slots.some((slot) => slot.state === 'uncertain') ? 'needs_review'
+          : remaining ? 'exhausted' : 'completed';
       }
       await save();
       const sent = run.slots.filter((slot) => slot.state === 'sent').length;
@@ -91,7 +109,7 @@ function createStatusScheduler({ store, postStatus, isReady = () => true,
     };
 
     // A previous process may have died between WhatsApp sending and saving.
-    if (quarantineSending()) await save();
+    if (quarantineSending(run)) await save();
     if (['completed', 'needs_review', 'exhausted'].includes(run.state)) {
       return { state: run.state };
     }
@@ -99,10 +117,24 @@ function createStatusScheduler({ store, postStatus, isReady = () => true,
     if (run.nextAttemptAt && new Date(run.nextAttemptAt) > startedAt) return { state: 'backoff' };
 
     run.state = 'running';
-    run.attempts += 1;
-    // Persist the budget before invoking any external sends.
+    // Reserving a run must not consume an attempt if storage prevents all work.
+    // Charge the first sending/media-failure checkpoint in the same write.
     run.nextAttemptAt = new Date(startedAt.getTime() + RETRY_DELAY_MS);
     await save();
+
+    let attemptCharged = false;
+    let storageBlocked = false;
+    const saveProgress = async () => {
+      if (!attemptCharged) run.attempts += 1;
+      try {
+        await save();
+      } catch (error) {
+        if (!attemptCharged) run.attempts -= 1;
+        storageBlocked = true;
+        throw error;
+      }
+      attemptCharged = true;
+    };
 
     const getSlot = (index) => {
       const slot = run.slots.find((entry) => entry.slot === index);
@@ -123,7 +155,7 @@ function createStatusScheduler({ store, postStatus, isReady = () => true,
           slot.state = 'sending';
           slot.lastError = undefined;
           try {
-            await save();
+            await saveProgress();
           } catch (error) {
             // postStatus awaits this callback before invoking WhatsApp, so
             // this process knows no send occurred. If storage recovers,
@@ -148,7 +180,7 @@ function createStatusScheduler({ store, postStatus, isReady = () => true,
           if (!isRetryable(slot)) throw new Error(`Status slot ${index} cannot safely be retried`);
           slot.state = 'failed';
           slot.lastError = errorText(error);
-          await save();
+          await saveProgress();
         },
       });
       run.lastError = undefined;
@@ -156,6 +188,9 @@ function createStatusScheduler({ store, postStatus, isReady = () => true,
       run.lastError = errorText(error);
       logger.error(`[status-scheduler] ${run.businessDate} ${schedule.time} batch interrupted: ${run.lastError}`);
     }
+    // Unexpected publisher failures before any slot callback still use the
+    // retry budget. Storage-only failures remain eligible after recovery.
+    if (!attemptCharged && !storageBlocked) run.attempts += 1;
     return await finish();
   }
 
@@ -164,6 +199,7 @@ function createStatusScheduler({ store, postStatus, isReady = () => true,
     inFlight = true;
     try {
       const clock = businessClock(now());
+      await recoverPreviousRuns(clock.date);
       const due = SCHEDULE.filter((schedule) => clock.minutes >= schedule.minutes);
       if (!due.length) return { state: 'not_due' };
       let result;

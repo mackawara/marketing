@@ -17,6 +17,8 @@ function fixture(start = '2026-10-09T07:00:00Z') {
     },
     store: {
       get: async (key) => structuredClone(rows.get(key)),
+      findUnfinishedBefore: async (date) => structuredClone([...rows.values()].filter((row) =>
+        row.businessDate < date && row.slots.some((slot) => slot.state === 'sending'))),
       save: async (row) => { rows.set(row._id, structuredClone(row)); },
     },
   };
@@ -202,6 +204,124 @@ test('ambiguous live send failures do not become successful or retryable', async
   assert.deepEqual(sent, [1, 2, 3, 4]);
 });
 
+test('uncertain sends keep their review state when safe-slot retries reach the attempt limit', async () => {
+  const f = fixture();
+  f.rows.set('2026-10-09', {
+    _id: '2026-10-09', businessDate: '2026-10-09', timezone: 'Africa/Harare',
+    state: 'pending', attempts: 0,
+    slots: [
+      { slot: 0, state: 'uncertain' },
+      { slot: 1, state: 'failed' },
+      ...[2, 3, 4].map((slot) => ({ slot, state: 'pending' })),
+    ],
+  });
+  let calls = 0;
+  const scheduler = createStatusScheduler({ ...f, postStatus: async (options) => {
+    calls += 1;
+    assert.deepEqual(options.skipSlots, [0]);
+    await options.onSlotFailed(1, new Error('Media remains unavailable'));
+    // The interrupted batch leaves both failed and pending safe slots.
+    throw new Error('Preparation interrupted');
+  } });
+  assert.equal((await scheduler.check()).state, 'pending');
+  f.setTime('2026-10-09T07:05:00Z');
+  assert.equal((await scheduler.check()).state, 'pending');
+  f.setTime('2026-10-09T07:10:00Z');
+  assert.deepEqual(await scheduler.check(), { state: 'needs_review', sent: 0, uncertain: 1 });
+  const run = f.rows.get('2026-10-09');
+  assert.equal(run.attempts, 3);
+  assert.equal(run.nextAttemptAt, null);
+  assert.deepEqual(run.slots.map((slot) => slot.state), [
+    'uncertain', 'failed', 'pending', 'pending', 'pending',
+  ]);
+  f.setTime('2026-10-09T07:15:00Z');
+  assert.equal((await scheduler.check()).state, 'needs_review');
+  assert.equal(calls, 3);
+});
+
+test('restart after Harare midnight quarantines old sends before 09:00 without backfilling', async () => {
+  const f = fixture('2026-10-09T22:00:00Z');
+  const oldIds = ['2026-10-09', '2026-10-09@13:00', '2026-10-09@16:30'];
+  for (const [index, id] of oldIds.entries()) {
+    f.rows.set(id, {
+      _id: id, businessDate: '2026-10-09', timezone: 'Africa/Harare',
+      scheduledTime: ['09:00', '13:00', '16:30'][index], state: 'running', attempts: 1,
+      nextAttemptAt: new Date('2026-10-09T21:55:00Z'),
+      slots: [
+        { slot: 0, state: 'sent', messageId: 'already-sent' },
+        { slot: 1, state: 'sending' },
+        ...[2, 3, 4].map((slot) => ({ slot, state: 'pending' })),
+      ],
+    });
+  }
+  f.rows.set('2026-10-08', {
+    _id: '2026-10-08', businessDate: '2026-10-08', timezone: 'Africa/Harare',
+    state: 'pending', attempts: 1,
+    slots: Array.from({ length: 5 }, (_, slot) => ({ slot, state: 'pending' })),
+  });
+  const pendingOldRun = structuredClone(f.rows.get('2026-10-08'));
+  const sent = [];
+  const options = { ...f, postStatus: (callbacks) => sendAvailable(callbacks, sent) };
+  assert.equal((await createStatusScheduler(options).check()).state, 'not_due');
+  assert.deepEqual(sent, []);
+  for (const id of oldIds) {
+    const run = f.rows.get(id);
+    assert.equal(run.state, 'needs_review');
+    assert.equal(run.attempts, 1);
+    assert.equal(run.nextAttemptAt, null);
+    assert.deepEqual(run.slots.map((slot) => slot.state), [
+      'sent', 'uncertain', 'pending', 'pending', 'pending',
+    ]);
+    assert.equal(run.slots[0].messageId, 'already-sent');
+  }
+  assert.equal(f.messages.filter((message) => message.includes('Check WhatsApp manually')).length, 3);
+  const oldRuns = structuredClone([...f.rows.values()]);
+
+  f.setTime('2026-10-10T07:00:00Z');
+  assert.equal((await createStatusScheduler(options).check()).state, 'completed');
+  assert.deepEqual(sent, [0, 1, 2, 3, 4]);
+  assert.equal(f.rows.get('2026-10-10').state, 'completed');
+  assert.deepEqual(oldIds.map((id) => f.rows.get(id)), oldRuns.slice(0, 3));
+  assert.deepEqual(f.rows.get('2026-10-08'), pendingOldRun);
+  assert.equal(f.messages.filter((message) => message.includes('Check WhatsApp manually')).length, 3);
+});
+
+test('old-send recovery retries failed persistence while offline and stops revisiting saved records', async () => {
+  const f = fixture('2026-10-10T07:00:00Z');
+  const oldId = '2026-10-09@16:30';
+  f.rows.set(oldId, {
+    _id: oldId, businessDate: '2026-10-09', timezone: 'Africa/Harare',
+    scheduledTime: '16:30', state: 'running', attempts: 1,
+    slots: [
+      { slot: 0, state: 'sending' },
+      ...[1, 2, 3, 4].map((slot) => ({ slot, state: 'pending' })),
+    ],
+  });
+  let saves = 0;
+  const normalSave = f.store.save;
+  f.store.save = async (row) => {
+    saves += 1;
+    if (saves === 1) throw new Error('Mongo unavailable during old-send recovery');
+    await normalSave(row);
+  };
+  let posts = 0;
+  const scheduler = createStatusScheduler({ ...f, isReady: () => false,
+    postStatus: async () => { posts += 1; } });
+  assert.equal((await scheduler.check()).state, 'error');
+  assert.equal(f.rows.get(oldId).slots[0].state, 'sending');
+  assert.equal((await scheduler.check()).state, 'not_ready');
+  assert.equal(f.rows.get(oldId).slots[0].state, 'uncertain');
+  assert.equal(f.rows.get(oldId).state, 'needs_review');
+  assert.equal(f.rows.get(oldId).nextAttemptAt, null);
+  const warningCount = f.messages.filter((message) => message.includes('Check WhatsApp manually')).length;
+  assert.ok(warningCount > 0);
+  assert.equal((await scheduler.check()).state, 'not_ready');
+  assert.equal(saves, 2);
+  assert.equal(posts, 0);
+  assert.equal(f.rows.size, 1);
+  assert.equal(f.messages.filter((message) => message.includes('Check WhatsApp manually')).length, warningCount);
+});
+
 test('persistent preparation failures stop after three attempts per batch', async () => {
   const f = fixture();
   let calls = 0;
@@ -335,6 +455,37 @@ test('a transient sending-checkpoint timeout restores safe retry because WhatsAp
     postStatus: (options) => sendAvailable(options, sent),
   }).check();
   assert.deepEqual(result, { state: 'completed', sent: 5, uncertain: 0 });
+  assert.deepEqual(sent, [0, 1, 2, 3, 4]);
+});
+
+test('repeated pre-send checkpoint failures do not consume the publication retry budget', async () => {
+  const f = fixture();
+  const normalSave = f.store.save;
+  let checkpointFailures = 0;
+  f.store.save = async (run) => {
+    if (run.state === 'running' && run.slots.some((slot) => slot.state === 'sending')) {
+      checkpointFailures += 1;
+      throw new Error('Mongo unavailable before WhatsApp send');
+    }
+    await normalSave(run);
+  };
+  const sent = [];
+  const options = { ...f, postStatus: (callbacks) => sendAvailable(callbacks, sent) };
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    f.setTime(new Date(Date.parse('2026-10-09T07:00:00Z') + attempt * 5 * 60 * 1000));
+    assert.equal((await createStatusScheduler(options).check()).state, 'pending');
+    assert.equal(f.rows.get('2026-10-09').attempts, 0);
+    assert.ok(f.rows.get('2026-10-09').slots.every((slot) => slot.state === 'pending'));
+  }
+  assert.equal(checkpointFailures, 4);
+  assert.deepEqual(sent, []);
+
+  f.store.save = normalSave;
+  f.setTime('2026-10-09T07:20:00Z');
+  assert.deepEqual(await createStatusScheduler(options).check(), {
+    state: 'completed', sent: 5, uncertain: 0,
+  });
+  assert.equal(f.rows.get('2026-10-09').attempts, 1);
   assert.deepEqual(sent, [0, 1, 2, 3, 4]);
 });
 

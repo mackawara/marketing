@@ -24,12 +24,18 @@ The scheduler checks every minute after the WhatsApp client becomes ready:
   minutes apart. A batch waiting to retry or with exhausted attempts does not block
   later due batches. Drive's file list is refreshed on each attempt; only
   photos/videos are used for statuses. A failed refresh retains the previous cache.
+  The attempt is charged with the first durable sending/media-failure checkpoint;
+  storage failures before that point do not consume the publication retry budget.
 - A send that starts but produces no saved result is marked `uncertain` and is
   **not retried automatically**. Check the status in WhatsApp before manually
   reposting it. This avoids duplicates when a connection drops after acceptance.
+  Once the scheduler starts, its next check also finds earlier `sending` records
+  and marks them for review, even before 09:00. It never republishes old runs.
 - Batch records end as `completed`, `needs_review` or `exhausted`. Watch
   `[status-scheduler]` logs for failures. A recorded message ID means the library
   returned a publish result; it does not confirm every viewer received it.
+  Once retries end, any uncertain send makes the batch `needs_review`, even when
+  other posts have also exhausted their retries.
 
 Run only **one bot instance per WhatsApp account/database**, as already configured
 in `ecosystem.config.js`. The overlap guard is local to that process. Use PM2's
