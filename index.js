@@ -14,6 +14,8 @@ const qrcode = require("qrcode-terminal");
 const contacts = require("./models/busContacts");
 const { advertService, sendAdMedia } = require("./services/advertServices");const { postStatus } = require('./services/statusService');const { initDriveCache } = require("./services/googleDrive");
 const { harvestGroupContacts } = require("./services/harvestContacts");
+const StatusRun = require('./models/statusRun');
+const { createStatusScheduler, createMongoStatusRunStore } = require('./services/statusScheduler');
 const channelService = require("./services/channel.service");
 const { STAFF_REMINDERS } = require("./services/staffReminders");
 const { startWebhookServer } = require("./services/webhookServer");
@@ -94,14 +96,15 @@ connectDB().then(async () => {
       }
     }, CRON_TZ);
 
-    // Post WhatsApp status at 09:25, 11:25 and 16:25 CAT
-    cron.schedule('25 16,11,9 * * *', async () => {
-      try {
-        await postStatus();
-      } catch (err) {
-        console.error('[cron:postStatus] Unhandled error:', err);
-      }
-    }, CRON_TZ);
+    // Status batches at 09:00, 13:00 and 16:30 CAT. Check every minute so startup
+    // catch-up and bounded retries use an independent checkpoint for each batch.
+    const statusScheduler = createStatusScheduler({
+      store: createMongoStatusRunStore(StatusRun),
+      postStatus,
+      isReady: async () => (await client.getState()) === 'CONNECTED',
+    });
+    cron.schedule('* * * * *', () => statusScheduler.check(), CRON_TZ);
+    void statusScheduler.check();
 
     // Harvest group contacts daily at 02:00 CAT
     cron.schedule('0 2 * * *', async () => {
