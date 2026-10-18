@@ -39,6 +39,12 @@ the official WhatsApp Business API, so WhatsApp may restrict or ban accounts for
 automation; `sendMessage` also returns `null` (treated as "send outcome unknown")
 for unsupported content. Live behaviour must be validated on the deployed session.
 
+A Channel post is recorded as sent only if the returned message carries a
+`serverId` (the library returns the local message even when WhatsApp rejects the
+post). Otherwise the slot is marked `uncertain` and not retried. If live runs mark
+slots `uncertain` although the posts are visible, the installed library version is
+not exposing `serverId` and this check needs adjusting.
+
 ### Channel content
 
 `services/channelContent.js` holds the prompt and topic rotation. Topics rotate
@@ -46,14 +52,18 @@ deterministically: Wi-Fi, security, WhatsApp tips, tech news, AI (so 3 posts a d
 cover every topic roughly every two days). The existing `services/openai.js` client
 is reused. News and AI posts use OpenAI web search, are limited to the last 7 days,
 and **must** end with a `Source:` link taken from the web-search citations (links the model writes itself are discarded); a news post with no usable source link is
-rejected and retried instead of being published. Tips never carry links.
+rejected and retried instead of being published. Tips never carry links. A response
+OpenAI reports as `incomplete` (e.g. cut off by the token limit) is never published.
 
 ### Status advert rotation
 
 Eligible photos/videos are ordered by filename (then Drive id) and used round-robin.
 Slot *N* of a run uses position `(days since 1970-01-01 × runs per day + run number) × STATUS_IMAGES_PER_BATCH + N`,
-so every advert is used once before any repeats, the choice is predictable, and a
-retried slot uses the same file. Adding or removing Drive files shifts the order.
+so every advert is used once before any repeats and the choice is predictable.
+All of a run's files are chosen before its first post and the Drive file ids are
+recorded on the run, so a retry or restart reposts exactly those adverts even if the
+folder changed meanwhile (a file deleted from Drive is replaced by the rotation
+pick). Folder changes apply from the next run.
 Each slot is one image/video (no groups). If the folder is empty or inaccessible,
 the slot fails and is retried; **nothing empty is ever posted**. Files are
 downloaded and posted sequentially, so a batch is not visible at exactly the

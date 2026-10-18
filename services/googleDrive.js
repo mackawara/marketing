@@ -114,7 +114,13 @@ const getRotatingFileFromDrive = ({ index = 0, mediaOnly = false } = {}) => {
         return null;
     }
     console.log(`Picked rotation file ${index}: ${file.filename}`);
-    return { url: file.url, filename: file.filename, mimeType: file.mimeType };
+    return { id: file.id, url: file.url, filename: file.filename, mimeType: file.mimeType };
 };
 
-module.exports = { initDriveCache, getRandomFileFromDrive, getRotatingFileFromDrive, selectRotatingFile };
+/** The cached media file with this Drive id, or null if it is gone from the folder. */
+const getFileByIdFromDrive = (id) => {
+    const file = cachedFiles.find((entry) => entry.id === id && isMedia(entry));
+    return file ? { id: file.id, url: file.url, filename: file.filename, mimeType: file.mimeType } : null;
+};
+
+module.exports = { getFileByIdFromDrive, initDriveCache, getRandomFileFromDrive, getRotatingFileFromDrive, selectRotatingFile };

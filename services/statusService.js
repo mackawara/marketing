@@ -8,12 +8,14 @@ const CAPTION = 'We are located at Shop 1, Pick N Pay Mall, 1st Floor (Upstairs 
 
 // Dependencies are injected so tests never start Chromium or publish to WhatsApp.
 const createStatusPoster = ({
-    client, MessageMedia, refreshFiles, pickFile,
+    client, MessageMedia, refreshFiles, pickFile, findFileById = () => null,
     getMentionOptions = async () => [], delay = timeDelay, logger = console,
     statusCount = STATUS_COUNT,
 }) => async ({
     skipSlots = [],
     rotationBase = 0,
+    selectedFiles = {},
+    onSlotSelected = async () => {},
     onSlotSending = async () => {},
     onSlotSent = async () => {},
     onSlotFailed = async () => {},
@@ -31,13 +33,27 @@ const createStatusPoster = ({
         logger.warn('[status] Mention selection failed; continuing without mentions.');
     }
 
+    // Choose every slot's file BEFORE publishing anything and record it, so a
+    // retry after the Drive folder changes republishes the same adverts instead
+    // of re-deriving them from the rotation index. A file that was deleted from
+    // Drive since it was chosen is replaced by the rotation pick for that slot.
+    const files = new Map();
+    for (let slot = 0; slot < statusCount; slot++) {
+        if (skipped.has(slot)) continue;
+        const chosen = selectedFiles[slot];
+        let file = chosen?.id ? findFileById(chosen.id) : null;
+        if (!file) file = pickFile({ mediaOnly: true, index: rotationBase + slot });
+        if (!file) continue;
+        files.set(slot, file);
+        if (file.id && file.id !== chosen?.id) await onSlotSelected(slot, file);
+    }
+
     for (let slot = 0; slot < statusCount; slot++) {
         if (skipped.has(slot)) continue;
 
         let media;
         try {
-            // Slot N of a scheduled run always maps to the same rotation index.
-            const file = pickFile({ mediaOnly: true, index: rotationBase + slot });
+            const file = files.get(slot);
             if (!file) throw new Error('No photo/video files available in Google Drive.');
             media = await MessageMedia.fromUrl(file.url, {
                 filename: file.filename, unsafeMime: true,
@@ -87,10 +103,10 @@ let poster;
 const postStatus = async (options) => {
     if (!poster) {
         const { client, MessageMedia } = require('../config/wwebjsConfig');
-        const { initDriveCache, getRotatingFileFromDrive } = require('./googleDrive');
+        const { initDriveCache, getRotatingFileFromDrive, getFileByIdFromDrive } = require('./googleDrive');
         const GroupContact = require('../models/contacts');
         poster = createStatusPoster({
-            client, MessageMedia, refreshFiles: initDriveCache, pickFile: getRotatingFileFromDrive,
+            client, MessageMedia, refreshFiles: initDriveCache, pickFile: getRotatingFileFromDrive, findFileById: getFileByIdFromDrive,
             getMentionOptions: async () => {
                 if (!config.STATUS_MENTIONS_ENABLED) return [];
                 console.warn('[status] Experimental contact/group mentions requested; notification delivery is unverified in whatsapp-web.js.');

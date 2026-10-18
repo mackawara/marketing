@@ -1,6 +1,10 @@
 const { generateChannelPost } = require('./channelContent');
 const { businessClock } = require('./statusScheduler');
 
+// whatsapp-web.js returns the locally created message even when the server
+// rejects a Channel post (success: false); only an accepted post gets a serverId.
+const serverAccepted = (message) => Boolean(message?.serverId ?? message?._data?.serverId);
+
 const CHANNEL_POSTS_PER_SLOT = require('../config').CHANNEL_POSTS_PER_SLOT;
 
 // Dependencies are injected so tests never call OpenAI or publish to WhatsApp.
@@ -40,6 +44,9 @@ const createChannelPublisher = ({
     try {
       message = await send(channelId, post.text);
       if (!message?.id?._serialized) throw new Error('No channel message id returned.');
+      // Without proof of server acceptance the post may or may not be live:
+      // keep the slot uncertain rather than recording success or retrying.
+      if (!serverAccepted(message)) throw new Error('Channel post was not confirmed as accepted by WhatsApp.');
     } catch (_) {
       result.uncertain++;
       logger.error(`[channel] Slot ${slot + 1}: send outcome unknown; check the Channel before resending.`);
@@ -70,4 +77,4 @@ const publishChannelPosts = async (options) => {
   return publisher(options);
 };
 
-module.exports = { createChannelPublisher, publishChannelPosts };
+module.exports = { createChannelPublisher, publishChannelPosts, serverAccepted };

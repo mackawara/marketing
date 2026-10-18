@@ -174,6 +174,14 @@ function createStatusScheduler({ store, postStatus, publish = postStatus,
     try {
       await publish({
         rotationBase,
+        selectedFiles: Object.fromEntries(run.slots.filter((slot) => slot.fileId)
+          .map((slot) => [slot.slot, { id: slot.fileId, filename: slot.filename }])),
+        // Kept in memory, then persisted by the first sending/failure checkpoint.
+        onSlotSelected: async (index, file) => {
+          const slot = getSlot(index);
+          slot.fileId = file.id;
+          slot.filename = file.filename;
+        },
         skipSlots: run.slots.filter((slot) => !isRetryable(slot)).map((slot) => slot.slot),
         onSlotSending: async (index) => {
           const slot = getSlot(index);

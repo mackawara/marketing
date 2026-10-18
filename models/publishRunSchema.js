@@ -8,6 +8,10 @@ const slotSchema = new mongoose.Schema({
     enum: ['pending', 'sending', 'sent', 'failed', 'uncertain'],
     required: true,
   },
+  // Status only: the Drive file chosen for this slot, reused on retries so a
+  // changed folder cannot shift which advert a retry publishes.
+  fileId: String,
+  filename: String,
   messageId: String,
   sentAt: Date,
   lastError: String,

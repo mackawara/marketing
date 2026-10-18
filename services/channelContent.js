@@ -89,6 +89,11 @@ async function generateChannelPost({ openai, rotationIndex, date, model = config
   if (topic.news) request.tools = [{ type: 'web_search' }];
 
   const response = await openai.responses.create(request);
+  // A response cut off by max_output_tokens (or failed) can still carry text.
+  if (response.status && response.status !== 'completed') {
+    const reason = response.incomplete_details?.reason || response.error?.message || response.status;
+    throw new Error(`OpenAI response was ${response.status} (${reason}); not publishing partial text.`);
+  }
   let text = String(response.output_text || '').trim();
   if (!text) throw new Error('OpenAI returned an empty Channel post.');
 

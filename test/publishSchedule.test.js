@@ -80,7 +80,7 @@ test('a failed Channel run retries without re-sending slots already recorded', a
       if (rotationIndex % 2 === 1 && failNext) { failNext = false; throw new Error('openai down'); }
       return { text: `post ${rotationIndex}`, topic: 't', sources: [] };
     },
-    send: async (_, text) => { sent.push(text); return { id: { _serialized: `id-${sent.length}` } }; },
+    send: async (_, text) => { sent.push(text); return { id: { _serialized: `id-${sent.length}` }, serverId: sent.length }; },
   });
   const scheduler = createStatusScheduler({ ...f, slotCount: 2, label: 'channel', legacyKeyTime: null, schedule: ['06:00'], publish: publisher });
   assert.equal((await scheduler.check()).state, 'pending');
@@ -115,7 +115,7 @@ test('Channel publisher requires a channel id and checkpoints before sending', a
   await createChannelPublisher({
     channelId: 'c', postsPerRun: 1, logger: quiet,
     generate: async () => ({ text: 'x', topic: 't', sources: [] }),
-    send: async () => { events.push('send'); return { id: { _serialized: 'i' } }; },
+    send: async () => { events.push('send'); return { id: { _serialized: 'i' }, serverId: 1 }; },
   })({ onSlotSending: async () => events.push('sending'), onSlotSent: async () => events.push('sent') });
   assert.deepEqual(events, ['sending', 'send', 'sent']);
 });
@@ -220,7 +220,7 @@ test('integrated day: real scheduler, generator, publisher and poster publish to
   });
   const channelPublisher = createChannelPublisher({
     openai, channelId: '123@newsletter', postsPerRun: 1, logger: quiet,
-    send: async (to, text) => { channelMessages.push([to, text]); return { id: { _serialized: `c${channelMessages.length}` } }; },
+    send: async (to, text) => { channelMessages.push([to, text]); return { id: { _serialized: `c${channelMessages.length}` }, serverId: channelMessages.length }; },
   });
   const status = createStatusScheduler({ ...f, publish: statusPoster, slotCount: 2 });
   const channel = createStatusScheduler({ ...channelF, publish: channelPublisher, slotCount: 1, label: 'channel', legacyKeyTime: null });
@@ -237,4 +237,72 @@ test('integrated day: real scheduler, generator, publisher and poster publish to
   assert.ok(channelMessages.every(([to]) => to === '123@newsletter'));
   assert.deepEqual([...statusRows.keys()], ['2026-10-18@06:00', '2026-10-18@10:00', '2026-10-18@18:00']);
   assert.ok([...channelF.rows.values()].every((run) => run.state === 'completed' && run.slots[0].messageId));
+});
+
+test('an incomplete or failed OpenAI response is never published', async () => {
+  for (const status of ['incomplete', 'failed']) {
+    const openai = fakeOpenAI({ status, incomplete_details: { reason: 'max_output_tokens' }, output_text: 'A tip that ends mid-sen', output: [] });
+    await assert.rejects(generateChannelPost({ openai, rotationIndex: 0, date: 'd' }), new RegExp(status));
+  }
+  const ok = await generateChannelPost({ openai: fakeOpenAI({ status: 'completed', output_text: 'Done.', output: [] }), rotationIndex: 0, date: 'd' });
+  assert.match(ok.text, /Done\./);
+});
+
+test('a Channel message without server acceptance is uncertain, not recorded as sent', async () => {
+  const f = fixture('2026-10-18T04:00:00Z');
+  let sends = 0;
+  const publisher = createChannelPublisher({
+    channelId: '1@newsletter', postsPerRun: 1, logger: quiet,
+    generate: async () => ({ text: 'hi', topic: 't', sources: [] }),
+    // The library returns the local message with no serverId when the job reports success: false.
+    send: async () => { sends += 1; return { id: { _serialized: 'local-id' }, ack: 1 }; },
+  });
+  const scheduler = createStatusScheduler({ ...f, slotCount: 1, schedule: ['06:00'], publish: publisher });
+  assert.equal((await scheduler.check()).state, 'needs_review');
+  assert.equal(f.rows.get('2026-10-18@06:00').slots[0].state, 'uncertain');
+  f.setTime('2026-10-18T04:30:00Z');
+  await scheduler.check();
+  assert.equal(sends, 1);
+});
+
+test('a retried Status slot reuses its persisted Drive file after the folder changes', async () => {
+  const f = fixture('2026-10-18T04:00:00Z');
+  let folder = [{ id: 'a', filename: 'a.jpg' }, { id: 'b', filename: 'b.jpg' }].map((x) => ({ ...x, mimeType: 'image/jpeg' }));
+  const published = [];
+  let failB = true;
+  const poster = createStatusPoster({
+    client: { sendMessage: async (_, media) => { published.push(media.name); return { id: { _serialized: `m${published.length}` } }; } },
+    MessageMedia: { fromUrl: async (_, { filename }) => {
+      if (filename === 'b.jpg' && failB) { failB = false; throw new Error('download failed'); }
+      return { data: 'd', mimetype: 'image/jpeg', name: filename };
+    } },
+    refreshFiles: async () => {}, delay: async () => {}, logger: quiet, statusCount: 2,
+    pickFile: ({ index }) => { const file = selectRotatingFile(folder, index); return { id: file.id, url: 'u', filename: file.filename }; },
+    findFileById: (id) => { const file = folder.find((entry) => entry.id === id); return file && { id: file.id, url: 'u', filename: file.filename }; },
+  });
+  const scheduler = createStatusScheduler({ ...f, slotCount: 2, schedule: ['06:00'], publish: poster });
+  assert.equal((await scheduler.check()).state, 'pending');
+  assert.deepEqual(published, ['a.jpg']);
+  const slots = f.rows.get('2026-10-18@06:00').slots;
+  assert.deepEqual(slots.map((slot) => slot.fileId), ['a', 'b']);
+
+  // A new file sorts first, so rotation index 1 would now be a.jpg again.
+  folder = [{ id: 'z', filename: '0.jpg', mimeType: 'image/jpeg' }, ...folder];
+  f.setTime('2026-10-18T04:06:00Z');
+  assert.equal((await scheduler.check()).state, 'completed');
+  assert.deepEqual(published, ['a.jpg', 'b.jpg']);
+});
+
+test('a persisted file removed from Drive is replaced by the rotation pick', async () => {
+  const published = [];
+  const poster = createStatusPoster({
+    client: { sendMessage: async (_, media) => { published.push(media.name); return { id: { _serialized: 'm' } }; } },
+    MessageMedia: { fromUrl: async (_, { filename }) => ({ data: 'd', mimetype: 'image/jpeg', name: filename }) },
+    refreshFiles: async () => {}, delay: async () => {}, logger: quiet, statusCount: 1,
+    pickFile: () => ({ id: 'c', url: 'u', filename: 'c.jpg' }), findFileById: () => null,
+  });
+  const selected = [];
+  await poster({ selectedFiles: { 0: { id: 'gone', filename: 'gone.jpg' } }, onSlotSelected: async (slot, file) => selected.push([slot, file.id]) });
+  assert.deepEqual(published, ['c.jpg']);
+  assert.deepEqual(selected, [[0, 'c']]);
 });
