@@ -183,3 +183,41 @@ test('news without any source link is rejected rather than published', async () 
   await assert.rejects(generateChannelPost({ openai, rotationIndex: 4, date: '2026-10-18' }), /No source link/);
   await assert.rejects(generateChannelPost({ openai: fakeOpenAI({ output_text: '  ', output: [] }), rotationIndex: 0, date: 'd' }), /empty/);
 });
+
+test('integrated day: real scheduler, generator, publisher and poster publish to Channel and Status once per slot', async () => {
+  const f = fixture('2026-10-18T16:00:00Z'); // 18:00 Harare: all three runs are due
+  const statusRows = f.rows;
+  const channelF = fixture('2026-10-18T16:00:00Z');
+  const channelMessages = [];
+  const statusMessages = [];
+  const openai = { responses: { create: async (request) => ({
+    output_text: request.tools ? '*News*\nSomething happened.' : '*Tip*\nDo this.',
+    output: request.tools ? [{ content: [{ annotations: [{ type: 'url_citation', url: 'https://news.example/x?utm_source=openai' }] }] }] : [],
+  }) } };
+  const files = ['b.jpg', 'a.jpg', 'c.jpg'].map((filename, i) => ({ id: `${i}`, filename, mimeType: 'image/jpeg' }));
+  const statusPoster = createStatusPoster({
+    client: { sendMessage: async (to, media) => { statusMessages.push([to, media.name]); return { id: { _serialized: `s${statusMessages.length}` } }; } },
+    MessageMedia: { fromUrl: async (url, { filename }) => ({ data: 'd', mimetype: 'image/jpeg', name: filename }) },
+    refreshFiles: async () => {}, delay: async () => {}, logger: quiet, statusCount: 2,
+    pickFile: ({ index, mediaOnly }) => { const file = selectRotatingFile(files, index, { mediaOnly }); return { url: 'u', filename: file.filename }; },
+  });
+  const channelPublisher = createChannelPublisher({
+    openai, channelId: '123@newsletter', postsPerRun: 1, logger: quiet,
+    send: async (to, text) => { channelMessages.push([to, text]); return { id: { _serialized: `c${channelMessages.length}` } }; },
+  });
+  const status = createStatusScheduler({ ...f, publish: statusPoster, slotCount: 2 });
+  const channel = createStatusScheduler({ ...channelF, publish: channelPublisher, slotCount: 1, label: 'channel', legacyKeyTime: null });
+
+  assert.equal((await status.check()).state, 'completed');
+  assert.equal((await channel.check()).state, 'completed');
+  await status.check();
+  await channel.check();
+
+  assert.equal(statusMessages.length, 6);
+  assert.ok(statusMessages.every(([to]) => to === 'status@broadcast'));
+  assert.deepEqual(statusMessages.slice(0, 3).map(([, name]) => name), ['a.jpg', 'b.jpg', 'c.jpg']);
+  assert.equal(channelMessages.length, 3);
+  assert.ok(channelMessages.every(([to]) => to === '123@newsletter'));
+  assert.deepEqual([...statusRows.keys()], ['2026-10-18@06:00', '2026-10-18@10:00', '2026-10-18@18:00']);
+  assert.ok([...channelF.rows.values()].every((run) => run.state === 'completed' && run.slots[0].messageId));
+});
