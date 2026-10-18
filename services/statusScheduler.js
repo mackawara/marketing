@@ -1,20 +1,24 @@
-const TIMEZONE = 'Africa/Harare';
-const SCHEDULE = [
-  { time: '09:00', minutes: 9 * 60 },
-  { time: '13:00', minutes: 13 * 60 },
-  { time: '16:30', minutes: 16 * 60 + 30 },
-];
-const STATUS_COUNT = 5;
+const config = require('../config');
+
+const TIMEZONE = config.PUBLISH_TIMEZONE;
 const MAX_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 5 * 60 * 1000;
-const dateFormatter = new Intl.DateTimeFormat('en-GB', {
-  timeZone: TIMEZONE,
-  year: 'numeric', month: '2-digit', day: '2-digit',
-  hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-});
+const DAY_MS = 24 * 60 * 60 * 1000;
+const dateFormatters = new Map();
 
-function businessClock(date) {
-  const parts = Object.fromEntries(dateFormatter.formatToParts(date)
+function dateFormatter(timezone) {
+  if (!dateFormatters.has(timezone)) {
+    dateFormatters.set(timezone, new Intl.DateTimeFormat('en-GB', {
+      timeZone: timezone,
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+    }));
+  }
+  return dateFormatters.get(timezone);
+}
+
+function businessClock(date, timezone = TIMEZONE) {
+  const parts = Object.fromEntries(dateFormatter(timezone).formatToParts(date)
     .map(({ type, value }) => [type, value]));
   return {
     date: `${parts.year}-${parts.month}-${parts.day}`,
@@ -39,15 +43,40 @@ function createMongoStatusRunStore(StatusRun) {
 const errorText = (error) => String(error?.message || error).slice(0, 1000);
 const isRetryable = (slot) => slot.state === 'pending' || slot.state === 'failed';
 
+// "06:00" -> { time: '06:00', minutes: 360 }, in chronological order.
+function buildSchedule(times) {
+  return times.map((time) => {
+    const [hours, minutes] = time.split(':').map(Number);
+    return { time, minutes: hours * 60 + minutes };
+  }).sort((a, b) => a.minutes - b.minutes);
+}
+
+// Days since the epoch for a YYYY-MM-DD business date.
+function epochDay(businessDate) {
+  const [year, month, day] = businessDate.split('-').map(Number);
+  return Math.round(Date.UTC(year, month - 1, day) / DAY_MS);
+}
+
 /**
- * Run daily batches at 09:00, 13:00 and 16:30 Harare, with same-day catch-up.
+ * Run daily batches at the configured times, with same-day catch-up.
  * Assumes the existing single PM2 instance: inFlight prevents overlapping ticks.
  * WhatsApp has no idempotency key here. Persist BEFORE sending and quarantine
- * ambiguous sends after a crash/error, instead of risking duplicate statuses.
+ * ambiguous sends after a crash/error, instead of risking duplicate posts.
+ *
+ * Used for both WhatsApp Status batches and Channel posts: `publish` receives
+ * the slot callbacks plus `rotationBase`, a number that increases by `slotCount`
+ * at every scheduled run so slot N of any run maps to one fixed rotation index.
+ * `legacyKeyTime` is the one time whose run keeps the old date-only record id.
  */
-function createStatusScheduler({ store, postStatus, isReady = () => true,
-  now = () => new Date(), logger = console }) {
+function createStatusScheduler({ store, postStatus, publish = postStatus,
+  isReady = () => true, now = () => new Date(), logger = console,
+  schedule: times = config.PUBLISH_TIMES, timezone = TIMEZONE,
+  slotCount = config.STATUS_IMAGES_PER_BATCH, label = 'status',
+  legacyKeyTime = '09:00' }) {
   let inFlight = false;
+  const SCHEDULE = buildSchedule(times);
+  const STATUS_COUNT = slotCount;
+  const tag = `[${label}-scheduler]`;
 
   function quarantineSending(run) {
     let changed = false;
@@ -55,7 +84,7 @@ function createStatusScheduler({ store, postStatus, isReady = () => true,
       if (slot.state !== 'sending') continue;
       slot.state = 'uncertain';
       slot.lastError = 'Send started but its publish result was not saved. Check WhatsApp manually; automatic retry suppressed.';
-      logger.error(`[status-scheduler] ${run.businessDate} ${run.scheduledTime || '09:00'} slot ${slot.slot + 1}: ${slot.lastError}`);
+      logger.error(`${tag} ${run.businessDate} ${run.scheduledTime || legacyKeyTime} slot ${slot.slot + 1}: ${slot.lastError}`);
       changed = true;
     }
     return changed;
@@ -76,12 +105,13 @@ function createStatusScheduler({ store, postStatus, isReady = () => true,
 
   async function runBatch(clock, schedule, startedAt) {
     // Preserve the original morning key so existing 09:00 records are reused.
-    const runId = schedule.time === '09:00' ? clock.date : `${clock.date}@${schedule.time}`;
+    const runId = schedule.time === legacyKeyTime ? clock.date : `${clock.date}@${schedule.time}`;
+    const rotationBase = (epochDay(clock.date) * SCHEDULE.length + SCHEDULE.indexOf(schedule)) * STATUS_COUNT;
     const run = await store.get(runId) || {
       _id: runId,
       businessDate: clock.date,
       scheduledTime: schedule.time,
-      timezone: TIMEZONE,
+      timezone,
       state: 'pending',
       attempts: 0,
       slots: Array.from({ length: STATUS_COUNT }, (_, slot) => ({ slot, state: 'pending' })),
@@ -104,7 +134,7 @@ function createStatusScheduler({ store, postStatus, isReady = () => true,
       await save();
       const sent = run.slots.filter((slot) => slot.state === 'sent').length;
       const uncertain = run.slots.filter((slot) => slot.state === 'uncertain').length;
-      logger.info(`[status-scheduler] ${run.businessDate} ${schedule.time}: ${run.state}, ${sent}/${STATUS_COUNT} recorded, ${uncertain} uncertain, attempt ${run.attempts}/${MAX_ATTEMPTS}.`);
+      logger.info(`${tag} ${run.businessDate} ${schedule.time}: ${run.state}, ${sent}/${STATUS_COUNT} recorded, ${uncertain} uncertain, attempt ${run.attempts}/${MAX_ATTEMPTS}.`);
       return { state: run.state, sent, uncertain };
     };
 
@@ -142,12 +172,13 @@ function createStatusScheduler({ store, postStatus, isReady = () => true,
       return slot;
     };
     try {
-      await postStatus({
+      await publish({
+        rotationBase,
         skipSlots: run.slots.filter((slot) => !isRetryable(slot)).map((slot) => slot.slot),
         onSlotSending: async (index) => {
           const slot = getSlot(index);
           if (!isRetryable(slot)) throw new Error(`Status slot ${index} must not be resent`);
-          if (businessClock(now()).date !== run.businessDate) {
+          if (businessClock(now(), timezone).date !== run.businessDate) {
             throw new Error('Daily status batch crossed midnight; stop the previous day\'s posts');
           }
           const previousState = slot.state;
@@ -186,7 +217,7 @@ function createStatusScheduler({ store, postStatus, isReady = () => true,
       run.lastError = undefined;
     } catch (error) {
       run.lastError = errorText(error);
-      logger.error(`[status-scheduler] ${run.businessDate} ${schedule.time} batch interrupted: ${run.lastError}`);
+      logger.error(`${tag} ${run.businessDate} ${schedule.time} batch interrupted: ${run.lastError}`);
     }
     // Unexpected publisher failures before any slot callback still use the
     // retry budget. Storage-only failures remain eligible after recovery.
@@ -198,7 +229,7 @@ function createStatusScheduler({ store, postStatus, isReady = () => true,
     if (inFlight) return { state: 'busy' };
     inFlight = true;
     try {
-      const clock = businessClock(now());
+      const clock = businessClock(now(), timezone);
       await recoverPreviousRuns(clock.date);
       const due = SCHEDULE.filter((schedule) => clock.minutes >= schedule.minutes);
       if (!due.length) return { state: 'not_due' };
@@ -206,14 +237,14 @@ function createStatusScheduler({ store, postStatus, isReady = () => true,
       for (const schedule of due) {
         const startedAt = now();
         // A slow recovery batch must not backfill yesterday after midnight.
-        if (businessClock(startedAt).date !== clock.date) break;
+        if (businessClock(startedAt, timezone).date !== clock.date) break;
         if (!await isReady()) return { state: 'not_ready' };
         result = await runBatch(clock, schedule, startedAt);
       }
       return result || { state: 'not_due' };
     } catch (error) {
       // A database outage must prevent sends, never bypass the checkpoint.
-      logger.error('[status-scheduler] Scheduled check failed:', errorText(error));
+      logger.error(`${tag} Scheduled check failed:`, errorText(error));
       return { state: 'error' };
     } finally {
       inFlight = false;
@@ -223,4 +254,4 @@ function createStatusScheduler({ store, postStatus, isReady = () => true,
   return { check };
 }
 
-module.exports = { createStatusScheduler, createMongoStatusRunStore, businessClock, TIMEZONE };
+module.exports = { createStatusScheduler, createMongoStatusRunStore, businessClock, buildSchedule, TIMEZONE };
