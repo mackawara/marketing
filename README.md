@@ -1,41 +1,106 @@
 # marketing
 A whatsapp bot for marketting products
 
-## Daily WhatsApp statuses
+## Scheduled WhatsApp Status adverts and Channel posts
 
-The bot starts a batch of five photo/video statuses each day at **09:00, 13:00
-and 16:30 Africa/Harare (CAT, UTC+2)**, for 15 statuses per day. Files are downloaded
-and posted sequentially, so the whole batch is not visible at exactly the
+Two workflows run at the same scheduled times, with no manual approval step:
+
+| Workflow | What is published per scheduled time |
+| --- | --- |
+| **WhatsApp Status** | `STATUS_IMAGES_PER_BATCH` (default 5) photos/videos from the Google Drive advert folder |
+| **WhatsApp Channel** | `CHANNEL_POSTS_PER_SLOT` (default 1) short AI-written tech message |
+
+### Configuration
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `PUBLISH_TIMES` | `06:00,10:00,18:00` | Comma-separated `HH:MM` (24h) times, shared by both workflows |
+| `PUBLISH_TIMEZONE` | `Africa/Harare` (UTC+2) | IANA timezone for the times above and all other cron jobs |
+| `GOOGLE_API_KEY`, `GOOGLE_DRIVE_FOLDER_ID` | — | Existing advert folder; it must be readable with the API key |
+| `CHANNEL_ID` | — | Channel id (`...@newsletter`). Takes precedence over `CHANNEL_INVITE` |
+| `CHANNEL_INVITE` | — | Channel link (`https://whatsapp.com/channel/...`) or its code. Used to look up the id at startup when `CHANNEL_ID` is unset; the id is logged so you can copy it into `CHANNEL_ID`. If neither is set, Channel posting is disabled with a warning |
+| `OPENAI_API_KEY`, `OPENAI_ORGANISATION_KEY` | — | Existing OpenAI configuration, unchanged |
+| `OPENAI_CHANNEL_MODEL` | `gpt-4o-mini` | Model for Channel posts; must support the Responses API and web search |
+| `STATUS_IMAGES_PER_BATCH`, `CHANNEL_POSTS_PER_SLOT` | `5`, `1` | Items per scheduled time |
+
+Invalid `PUBLISH_TIMES`/`PUBLISH_TIMEZONE` values are logged and replaced by the
+defaults rather than silently producing a different schedule.
+
+### Channel setup
+
+1. Create the Channel once with `channelService.createChannel(title)`
+   (`services/channel.service.js`) from the connected account, or reuse an existing
+   Channel that account owns.
+2. Put the returned `nid._serialized` value in `CHANNEL_ID` and restart. For an existing
+   Channel, set `CHANNEL_INVITE` to its link instead; the bot looks the id up itself.
+   The link only identifies the Channel: **the connected WhatsApp account must be its
+   owner or an admin to post**, otherwise sends are rejected.
+
+**Capability limits:** `whatsapp-web.js` is an unofficial client. It can create
+Channels and send text/image/video/poll messages to a Channel the connected account
+owns or administers, and photo/video/text/audio to `status@broadcast`. It is not
+the official WhatsApp Business API, so WhatsApp may restrict or ban accounts for
+automation; `sendMessage` also returns `null` (treated as "send outcome unknown")
+for unsupported content. Live behaviour must be validated on the deployed session.
+
+A Channel post is recorded as sent only if the returned message carries a
+`serverId` (the library returns the local message even when WhatsApp rejects the
+post). Otherwise the slot is marked `uncertain` and not retried. If live runs mark
+slots `uncertain` although the posts are visible, the installed library version is
+not exposing `serverId` and this check needs adjusting.
+
+### Channel content
+
+`services/channelContent.js` holds the prompt and topic rotation. Topics rotate
+deterministically: Wi-Fi, security, WhatsApp tips, tech news, AI (so 3 posts a day
+cover every topic roughly every two days). The existing `services/openai.js` client
+is reused. News and AI posts use OpenAI web search, are limited to the last 7 days,
+and **must** end with a `Source:` link taken from the web-search citations (links the model writes itself are discarded); a news post with no usable source link is
+rejected and retried instead of being published. Tips never carry links. A response
+OpenAI reports as `incomplete` (e.g. cut off by the token limit) is never published.
+
+### Status advert rotation
+
+Eligible photos/videos are ordered by filename (then Drive id) and used round-robin.
+Slot *N* of a run uses position `(days since 1970-01-01 × runs per day + run number) × STATUS_IMAGES_PER_BATCH + N`,
+so every advert is used once before any repeats and the choice is predictable.
+All of a run's files are chosen before its first post and the Drive file ids are
+recorded on the run, so a retry or restart reposts exactly those adverts even if the
+folder changed meanwhile (a file deleted from Drive is replaced by the rotation
+pick). Folder changes apply from the next run.
+Each slot is one image/video (no groups). If the folder is empty or inaccessible,
+the slot fails and is retried; **nothing empty is ever posted**. Files are
+downloaded and posted sequentially, so a batch is not visible at exactly the
 scheduled time. The server, WhatsApp session, MongoDB and media source must be
 available for on-time posting.
 
-The scheduler checks every minute after the WhatsApp client becomes ready:
+### Reliability and duplicates
 
-- If the bot starts late, it catches up every due batch from that same day in
+Each scheduler checks every minute after the WhatsApp client becomes ready:
+
+- If the bot starts late, it catches up every due run from that same day in
   schedule order. It does not backfill previous days. Deploying/restarting after
-  09:00 can therefore publish immediately if due batches have no saved checkpoints;
-  starting after 16:30 with no checkpoints can publish all 15 statuses.
-- Progress is stored independently for each batch in MongoDB's `statusruns`
-  collection. The 09:00 batch retains its Harare date key (`YYYY-MM-DD`) so existing
-  records prevent duplicate morning posts; later keys include their scheduled time
-  (`YYYY-MM-DD@13:00` and `YYYY-MM-DD@16:30`). Recorded posts are skipped on restart.
-  Keep this collection across deployments.
-- Media preparation failures get up to three attempts per batch, at least five
-  minutes apart. A batch waiting to retry or with exhausted attempts does not block
-  later due batches. Drive's file list is refreshed on each attempt; only
-  photos/videos are used for statuses. A failed refresh retains the previous cache.
-  The attempt is charged with the first durable sending/media-failure checkpoint;
-  storage failures before that point do not consume the publication retry budget.
+  06:00 can therefore publish immediately if due runs have no saved checkpoints;
+  starting after 18:00 with no checkpoints publishes all of that day's runs.
+- Progress is stored per run in MongoDB: Status in `statusruns`, Channel in
+  `channelruns`. Record ids are `YYYY-MM-DD@HH:mm` (a `09:00` Status run keeps its
+  legacy `YYYY-MM-DD` id). Recorded posts are skipped on restart, which is what
+  prevents duplicates. Keep both collections across deployments. The previous
+  09:00/13:00/16:30 records are untouched but no longer used.
+- Preparation failures (Drive/download for Status, OpenAI/sourcing for Channel) get
+  up to three attempts per run, at least five minutes apart. A failed run does not
+  block later runs. The attempt is charged with the first durable
+  sending/failure checkpoint; storage failures before that point do not consume
+  the retry budget.
 - A send that starts but produces no saved result is marked `uncertain` and is
-  **not retried automatically**. Check the status in WhatsApp before manually
-  reposting it. This avoids duplicates when a connection drops after acceptance.
-  Once the scheduler starts, its next check also finds earlier `sending` records
-  and marks them for review, even before 09:00. It never republishes old runs.
-- Batch records end as `completed`, `needs_review` or `exhausted`. Watch
-  `[status-scheduler]` logs for failures. A recorded message ID means the library
-  returned a publish result; it does not confirm every viewer received it.
-  Once retries end, any uncertain send makes the batch `needs_review`, even when
-  other posts have also exhausted their retries.
+  **not retried automatically**. Check WhatsApp before manually reposting. This
+  avoids duplicates when a connection drops after acceptance. The next check also
+  finds earlier `sending` records and marks them for review. It never republishes
+  old runs.
+- Run records end as `completed`, `needs_review` or `exhausted`, with each slot's
+  message id or last error. Watch `[status-scheduler]` and `[channel-scheduler]`
+  logs. A recorded message ID means the library returned a publish result; it does
+  not confirm every viewer received it.
 
 Run only **one bot instance per WhatsApp account/database**, as already configured
 in `ecosystem.config.js`. The overlap guard is local to that process. Use PM2's
@@ -72,9 +137,9 @@ the artwork so reshares still identify the business.
 ### Local verification
 
 Run `npm test` (Node 20+). Tests use fake clocks, storage and WhatsApp clients; they
-cover all three Harare schedule boundaries, restarts, independent batch retries,
+cover the 06:00/10:00/18:00 schedule boundaries, rotation, Channel content rules, restarts, independent batch retries,
 uncertain outcomes, checkpoint failures and mention limits without publishing
-anything. Live media publishing and mention notifications require validation
+anything. Live Channel/Status publishing, OpenAI web search and mention notifications require validation
 against the deployed WhatsApp session.
 
 ## Run health/restart test mode

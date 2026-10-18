@@ -15,8 +15,9 @@ const contacts = require("./models/busContacts");
 const { advertService, sendAdMedia } = require("./services/advertServices");const { postStatus } = require('./services/statusService');const { initDriveCache } = require("./services/googleDrive");
 const { harvestGroupContacts } = require("./services/harvestContacts");
 const StatusRun = require('./models/statusRun');
+const ChannelRun = require('./models/channelRun');
 const { createStatusScheduler, createMongoStatusRunStore } = require('./services/statusScheduler');
-const channelService = require("./services/channel.service");
+const { publishChannelPosts } = require("./services/channelPublisher");
 const { STAFF_REMINDERS } = require("./services/staffReminders");
 const { startWebhookServer } = require("./services/webhookServer");
 
@@ -85,7 +86,7 @@ connectDB().then(async () => {
     // All schedules are local business time. Without an explicit timezone
     // node-cron uses the system TZ, which is UTC on the server — so these were
     // firing two hours earlier than intended.
-    const CRON_TZ = { timezone: 'Africa/Harare' };
+    const CRON_TZ = { timezone: config.PUBLISH_TIMEZONE };
 
     // Adverts at 07:25, 13:25 and 18:25 CAT
     cron.schedule(`25 7,13,18 * * *`, async () => {
@@ -96,15 +97,32 @@ connectDB().then(async () => {
       }
     }, CRON_TZ);
 
-    // Status batches at 09:00, 13:00 and 16:30 CAT. Check every minute so startup
-    // catch-up and bounded retries use an independent checkpoint for each batch.
+    // Status batches and Channel posts run at config.PUBLISH_TIMES (default
+    // 06:00, 10:00 and 18:00 Africa/Harare). Check every minute so startup
+    // catch-up and bounded retries use an independent checkpoint for each run.
     const statusScheduler = createStatusScheduler({
       store: createMongoStatusRunStore(StatusRun),
-      postStatus,
+      publish: postStatus,
       isReady: async () => (await client.getState()) === 'CONNECTED',
+      slotCount: config.STATUS_IMAGES_PER_BATCH,
     });
     cron.schedule('* * * * *', () => statusScheduler.check(), CRON_TZ);
     void statusScheduler.check();
+
+    if (config.CHANNEL_ID || config.CHANNEL_INVITE_CODE) {
+      const channelScheduler = createStatusScheduler({
+        store: createMongoStatusRunStore(ChannelRun),
+        publish: publishChannelPosts,
+        isReady: async () => (await client.getState()) === 'CONNECTED',
+        slotCount: config.CHANNEL_POSTS_PER_SLOT,
+        label: 'channel',
+        legacyKeyTime: null,
+      });
+      cron.schedule('* * * * *', () => channelScheduler.check(), CRON_TZ);
+      void channelScheduler.check();
+    } else {
+      console.warn('[channel] Neither CHANNEL_ID nor CHANNEL_INVITE is set; Channel posting is disabled.');
+    }
 
     // Harvest group contacts daily at 02:00 CAT
     cron.schedule('0 2 * * *', async () => {
@@ -135,16 +153,6 @@ connectDB().then(async () => {
       console.log('[cron:recycle] Scheduled daily client recycle.');
       await restartClient('scheduled-daily-recycle');
     }, CRON_TZ);
-
-    // Post tech tip to channel daily at 09:00
-    // cron.schedule('0 9 * * *', async () => {
-    //   try {
-    //     await channelService.postRandomTechTip();
-    //     console.log('Daily tech tip posted to channel');
-    //   } catch (error) {
-    //     console.error('Failed to post tech tip:', error);
-    //   }
-    // });
 
     // Initial harvest 30s after startup
     setTimeout(() => harvestGroupContacts().catch(err => console.error('[startup:harvestGroupContacts] Unhandled error:', err)), 30000);

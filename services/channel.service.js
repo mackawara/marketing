@@ -1,8 +1,9 @@
 const { client, MessageMedia } = require("../config/wwebjsConfig");
 const config = require("../config");
 const openai = require("./openai");
-const path = require("path");
-const fs = require("fs/promises");
+const { createChannelIdResolver } = require("./channelId");
+const { generateChannelPost } = require("./channelContent");
+const { businessClock } = require("./statusScheduler");
 
 /**
  * Default channel description for tech updates
@@ -12,7 +13,15 @@ const DEFAULT_TECH_DESCRIPTION = "🔧 Your go-to source for technology updates 
 /**
  * Service to manage WhatsApp Channels
  */
+const resolveChannelId = createChannelIdResolver({
+  configuredId: config.CHANNEL_ID,
+  inviteCode: config.CHANNEL_INVITE_CODE,
+  getChannelByInviteCode: (code) => client.getChannelByInviteCode(code),
+});
+
 const channelService = {
+  resolveChannelId,
+
   /**
    * Reusable function to create a new channel
    * @param {string} title - The name of the channel (e.g., "Tech Updates & Solutions")
@@ -108,107 +117,24 @@ const channelService = {
   },
 
   /**
-   * Generates and posts a random tech tip with AI-generated image
+   * Generates and posts one short tech message (Wi-Fi, security, WhatsApp tips,
+   * tech news or AI) on demand. Scheduled posting goes through
+   * services/channelPublisher.js, which uses the same generator.
+   * @param {number} [rotationIndex] - Topic rotation position (random if omitted)
    */
-  async postRandomTechTip() {
-    const topics = [
-      "WiFi coverage optimization",
-      "WiFi signal strength improvement",
-      "WiFi security best practices"
-    ];
-
-    try {
-      // Check if channel ID is set
-      if (!config.CHANNEL_ID) {
-        throw new Error("CHANNEL_ID not set in config. Please create a channel first.");
-      }
-
-      // Randomly select a topic
-      const topic = topics[Math.floor(Math.random() * topics.length)];
-      console.log(`Generating tech tip about: ${topic}`);
-
-      // Generate tip using OpenAI
-      const tipResponse = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: "You are a technical expert providing concise, practical tips. Generate ONE sentence only - actionable and professional."
-          },
-          {
-            role: "user",
-            content: `Generate a single sentence practical tip about ${topic}.`
-          }
-        ],
-        max_tokens: 100,
-        temperature: 0.8
-      });
-
-      const techTip = tipResponse.choices[0].message.content.trim();
-      console.log(`Generated tip: ${techTip}`);
-
-      // Create image prompt from the tip
-      const imagePromptResponse = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: "Convert tech tips into detailed DALL-E image prompts. Use professional, modern, tech-focused visual descriptions."
-          },
-          {
-            role: "user",
-            content: `Create a DALL-E prompt for this tech tip: "${techTip}". The image should be professional, modern, and technology-focused.`
-          }
-        ],
-        max_tokens: 150
-      });
-
-      const imagePrompt = imagePromptResponse.choices[0].message.content.trim();
-      console.log(`Image prompt: ${imagePrompt}`);
-
-      // Generate image using DALL-E
-      const imageResponse = await openai.images.generate({
-        model: "dall-e-3",
-        prompt: imagePrompt,
-        n: 1,
-        size: "1024x1024",
-        quality: "standard"
-      });
-
-      const imageUrl = imageResponse.data[0].url;
-      console.log(`Image generated: ${imageUrl}`);
-
-      // Download the image
-      const imageBuffer = await fetch(imageUrl).then(res => res.arrayBuffer());
-      const imagePath = path.join(__dirname, "../services/assets", `tech-tip-${Date.now()}.png`);
-      await fs.writeFile(imagePath, Buffer.from(imageBuffer));
-
-      // Format message with emoji based on topic
-      let emoji = "💡";
-      if (topic.includes("WiFi")) emoji = "📡";
-      if (topic.includes("CCTV") || topic.includes("camera")) emoji = "📹";
-      if (topic.includes("Alarm") || topic.includes("security")) emoji = "🔒";
-
-      const message = `${emoji} *Tech Tip of the Day*\n\n${techTip}\n\n#TechTips #${topic.split(" ")[0]}`;
-
-      // Post to channel
-      await this.postUpdate(config.CHANNEL_ID, message, imagePath);
-      console.log("Tech tip posted successfully!");
-
-      // Clean up image file after posting
-      setTimeout(async () => {
-        try {
-          await fs.unlink(imagePath);
-        } catch (err) {
-          console.error("Error cleaning up image:", err);
-        }
-      }, 5000);
-
-      return { tip: techTip, imagePath };
-    } catch (error) {
-      console.error("Error generating/posting tech tip:", error);
-      throw error;
+  async postRandomTechTip(rotationIndex = Math.floor(Math.random() * 1000)) {
+    const channelId = await resolveChannelId();
+    if (!channelId) {
+      throw new Error("CHANNEL_ID (or CHANNEL_INVITE) not set in config.");
     }
+    const { text, topic } = await generateChannelPost({
+      openai,
+      rotationIndex,
+      date: businessClock(new Date()).date,
+    });
+    await this.postUpdate(channelId, text);
+    console.log(`Channel ${topic} post published.`);
+    return { text, topic };
   }
 };
 

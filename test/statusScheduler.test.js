@@ -7,6 +7,8 @@ function fixture(start = '2026-10-09T07:00:00Z') {
   const rows = new Map();
   const messages = [];
   return {
+    // These scenarios predate configurable times; pin the original schedule.
+    schedule: ['09:00', '13:00', '16:30'],
     rows,
     messages,
     now: () => new Date(current),

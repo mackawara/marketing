@@ -1,22 +1,28 @@
 const timeDelay = require('../UTILS/timeDelay');
 const { createStatusMentionOptions } = require('./statusMentions');
 
-const STATUS_COUNT = 5;
+const config = require('../config');
+
+const STATUS_COUNT = config.STATUS_IMAGES_PER_BATCH;
 const CAPTION = 'We are located at Shop 1, Pick N Pay Mall, 1st Floor (Upstairs from TM), Ground Entrance Between Post Office and Bank ABC ATM';
 
 // Dependencies are injected so tests never start Chromium or publish to WhatsApp.
 const createStatusPoster = ({
-    client, MessageMedia, refreshFiles, pickFile,
+    client, MessageMedia, refreshFiles, pickFile, findFileById = () => null,
     getMentionOptions = async () => [], delay = timeDelay, logger = console,
+    statusCount = STATUS_COUNT,
 }) => async ({
     skipSlots = [],
+    rotationBase = 0,
+    selectedFiles = {},
+    onSlotSelected = async () => {},
     onSlotSending = async () => {},
     onSlotSent = async () => {},
     onSlotFailed = async () => {},
 } = {}) => {
     const skipped = new Set(skipSlots);
     const result = { sent: 0, failed: 0, uncertain: 0, skipped: skipped.size };
-    if (skipped.size === STATUS_COUNT) return result;
+    if (skipped.size >= statusCount) return result;
 
     // Refresh daily as well as at startup, so an empty/stale cache can recover.
     await refreshFiles();
@@ -27,12 +33,27 @@ const createStatusPoster = ({
         logger.warn('[status] Mention selection failed; continuing without mentions.');
     }
 
-    for (let slot = 0; slot < STATUS_COUNT; slot++) {
+    // Choose every slot's file BEFORE publishing anything and record it, so a
+    // retry after the Drive folder changes republishes the same adverts instead
+    // of re-deriving them from the rotation index. A file that was deleted from
+    // Drive since it was chosen is replaced by the rotation pick for that slot.
+    const files = new Map();
+    for (let slot = 0; slot < statusCount; slot++) {
+        if (skipped.has(slot)) continue;
+        const chosen = selectedFiles[slot];
+        let file = chosen?.id ? findFileById(chosen.id) : null;
+        if (!file) file = pickFile({ mediaOnly: true, index: rotationBase + slot });
+        if (!file) continue;
+        files.set(slot, file);
+        if (file.id && file.id !== chosen?.id) await onSlotSelected(slot, file);
+    }
+
+    for (let slot = 0; slot < statusCount; slot++) {
         if (skipped.has(slot)) continue;
 
         let media;
         try {
-            const file = pickFile({ mediaOnly: true });
+            const file = files.get(slot);
             if (!file) throw new Error('No photo/video files available in Google Drive.');
             media = await MessageMedia.fromUrl(file.url, {
                 filename: file.filename, unsafeMime: true,
@@ -71,7 +92,7 @@ const createStatusPoster = ({
         await onSlotSent(slot, message.id._serialized);
         result.sent++;
         logger.log(`[status] Slot ${slot + 1}: publish call returned a message id.`);
-        if (slot < STATUS_COUNT - 1) await delay(3000);
+        if (slot < statusCount - 1) await delay(3000);
     }
 
     logger.log(`[status] Batch: ${result.sent} recorded, ${result.failed} preparation failures, ${result.uncertain} uncertain, ${result.skipped} skipped.`);
@@ -82,11 +103,10 @@ let poster;
 const postStatus = async (options) => {
     if (!poster) {
         const { client, MessageMedia } = require('../config/wwebjsConfig');
-        const { initDriveCache, getRandomFileFromDrive } = require('./googleDrive');
+        const { initDriveCache, getRotatingFileFromDrive, getFileByIdFromDrive } = require('./googleDrive');
         const GroupContact = require('../models/contacts');
-        const config = require('../config');
         poster = createStatusPoster({
-            client, MessageMedia, refreshFiles: initDriveCache, pickFile: getRandomFileFromDrive,
+            client, MessageMedia, refreshFiles: initDriveCache, pickFile: getRotatingFileFromDrive, findFileById: getFileByIdFromDrive,
             getMentionOptions: async () => {
                 if (!config.STATUS_MENTIONS_ENABLED) return [];
                 console.warn('[status] Experimental contact/group mentions requested; notification delivery is unverified in whatsapp-web.js.');

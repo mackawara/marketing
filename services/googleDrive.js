@@ -86,4 +86,41 @@ const getRandomFileFromDrive = ({ mediaOnly = false } = {}) => {
     };
 };
 
-module.exports = { initDriveCache, getRandomFileFromDrive };
+const isMedia = (file) => /^(image|video)\//.test(file.mimeType || '');
+
+/**
+ * Rotation rule: eligible files are ordered by filename (then Drive id) and
+ * `index` walks that list round-robin, so every advert is used once before any
+ * repeats and the same index always maps to the same file. Pure for testing.
+ * @param {Array<{id: string, filename: string, mimeType: string}>} files
+ * @param {number} index - Non-negative rotation position
+ * @param {{mediaOnly?: boolean}} [options]
+ */
+const selectRotatingFile = (files, index, { mediaOnly = false } = {}) => {
+    const candidates = (mediaOnly ? files.filter(isMedia) : [...files])
+        .sort((a, b) => a.filename.localeCompare(b.filename, 'en') || a.id.localeCompare(b.id, 'en'));
+    if (candidates.length === 0) return null;
+    return candidates[((index % candidates.length) + candidates.length) % candidates.length];
+};
+
+/**
+ * Picks the file at a rotation position from the cached Google Drive files.
+ * @returns {{url: string, filename: string, mimeType: string}|null}
+ */
+const getRotatingFileFromDrive = ({ index = 0, mediaOnly = false } = {}) => {
+    const file = selectRotatingFile(cachedFiles, index, { mediaOnly });
+    if (!file) {
+        console.log('No files cached from Google Drive.');
+        return null;
+    }
+    console.log(`Picked rotation file ${index}: ${file.filename}`);
+    return { id: file.id, url: file.url, filename: file.filename, mimeType: file.mimeType };
+};
+
+/** The cached media file with this Drive id, or null if it is gone from the folder. */
+const getFileByIdFromDrive = (id) => {
+    const file = cachedFiles.find((entry) => entry.id === id && isMedia(entry));
+    return file ? { id: file.id, url: file.url, filename: file.filename, mimeType: file.mimeType } : null;
+};
+
+module.exports = { getFileByIdFromDrive, initDriveCache, getRandomFileFromDrive, getRotatingFileFromDrive, selectRotatingFile };
