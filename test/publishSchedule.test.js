@@ -178,9 +178,26 @@ test('news uses web search, appends a cited source and strips tracking params', 
   assert.match(post.text, /Source: https:\/\/news\.example\/a\?id=7$/);
 });
 
+test('news ignores model-written URLs: only a web-search citation is published', async () => {
+  const openai = fakeOpenAI(withCitation('*Big news*\nSomething happened, see https://made-up.example/story.\nSource: https://made-up.example/story', 'https://real.example/a'));
+  const { text, sources } = await generateChannelPost({ openai, rotationIndex: 3, date: '2026-10-18' });
+  assert.ok(!text.includes('made-up'));
+  assert.match(text, /Something happened, see\.?/);
+  assert.deepEqual(sources, ['https://real.example/a']);
+  assert.equal(text.split('Source:').length, 2);
+  // A model-written link with no citation is not enough to publish news.
+  await assert.rejects(generateChannelPost({ openai: fakeOpenAI({ output_text: 'News https://made-up.example', output: [] }), rotationIndex: 3, date: 'd' }), /No cited source/);
+});
+
+test('tips drop only the URL, keeping the advice on the same line', async () => {
+  const one = await generateChannelPost({ openai: fakeOpenAI({ output_text: 'Use WPA3 on your router https://x.example/guide today.', output: [] }), rotationIndex: 1, date: 'd' });
+  assert.equal(one.text, '🔒 Use WPA3 on your router today.');
+  await assert.rejects(generateChannelPost({ openai: fakeOpenAI({ output_text: 'https://x.example', output: [] }), rotationIndex: 1, date: 'd' }), /besides links/);
+});
+
 test('news without any source link is rejected rather than published', async () => {
   const openai = fakeOpenAI({ output_text: 'Unsourced claim', output: [] });
-  await assert.rejects(generateChannelPost({ openai, rotationIndex: 4, date: '2026-10-18' }), /No source link/);
+  await assert.rejects(generateChannelPost({ openai, rotationIndex: 4, date: '2026-10-18' }), /No cited source link/);
   await assert.rejects(generateChannelPost({ openai: fakeOpenAI({ output_text: '  ', output: [] }), rotationIndex: 0, date: 'd' }), /empty/);
 });
 

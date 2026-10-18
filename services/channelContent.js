@@ -35,7 +35,6 @@ function topicFor(rotationIndex) {
 }
 
 const URL_PATTERN = /https?:\/\/[^\s)>\]]+/g;
-const HAS_URL = /https?:\/\//;
 
 // web_search appends tracking params such as ?utm_source=openai.
 function cleanUrl(url) {
@@ -48,6 +47,17 @@ function cleanUrl(url) {
   } catch (_) {
     return null;
   }
+}
+
+// Remove URLs but keep the rest of their line, then drop labels left dangling
+// ("Source:") and tidy the whitespace.
+function stripUrls(text) {
+  return text
+    .replace(URL_PATTERN, '')
+    .split('\n')
+    .map((line) => line.replace(/[ \t]+/g, ' ').replace(/[ \t]+([.,;:!?])/g, '$1').trim())
+    .filter((line) => line && !/^(sources?|read more|link)\s*:?\s*$/i.test(line))
+    .join('\n');
 }
 
 function citedUrls(response) {
@@ -82,20 +92,17 @@ async function generateChannelPost({ openai, rotationIndex, date, model = config
   let text = String(response.output_text || '').trim();
   if (!text) throw new Error('OpenAI returned an empty Channel post.');
 
-  // Normalise any URLs the model wrote (drops tracking params), then make sure
-  // news carries at least one link, falling back to a cited source.
-  text = text.replace(URL_PATTERN, (url) => cleanUrl(url.replace(/[.,;]+$/, '')) || url);
-  let sources = text.match(URL_PATTERN) || [];
-  if (topic.news && sources.length === 0) {
+  // The model's own URLs are never trusted. Strip them (keeping the sentence
+  // they sit in), then for news append a link taken from the web-search
+  // citations only, so every published source was actually retrieved.
+  text = stripUrls(text);
+  if (!text) throw new Error('OpenAI returned no Channel post text besides links.');
+  let sources = [];
+  if (topic.news) {
     const [cited] = citedUrls(response);
-    if (!cited) throw new Error(`No source link available for ${topic.label} post; not publishing unsourced news.`);
+    if (!cited) throw new Error(`No cited source link for ${topic.label} post; not publishing unsourced news.`);
     text = `${text}\n\nSource: ${cited}`;
     sources = [cited];
-  }
-  if (!topic.news && sources.length > 0) {
-    // Tips are evergreen; a model-invented link is more risk than value.
-    text = text.split('\n').filter((line) => !HAS_URL.test(line)).join('\n').trim();
-    sources = [];
   }
   return { text: `${topic.emoji} ${text}`, topic: topic.key, sources };
 }

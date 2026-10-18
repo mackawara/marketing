@@ -45,7 +45,7 @@ for unsupported content. Live behaviour must be validated on the deployed sessio
 deterministically: Wi-Fi, security, WhatsApp tips, tech news, AI (so 3 posts a day
 cover every topic roughly every two days). The existing `services/openai.js` client
 is reused. News and AI posts use OpenAI web search, are limited to the last 7 days,
-and **must** end with a `Source:` link; a news post with no usable source link is
+and **must** end with a `Source:` link taken from the web-search citations (links the model writes itself are discarded); a news post with no usable source link is
 rejected and retried instead of being published. Tips never carry links.
 
 ### Status advert rotation
