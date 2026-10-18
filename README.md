@@ -17,7 +17,8 @@ Two workflows run at the same scheduled times, with no manual approval step:
 | `PUBLISH_TIMES` | `06:00,10:00,18:00` | Comma-separated `HH:MM` (24h) times, shared by both workflows |
 | `PUBLISH_TIMEZONE` | `Africa/Harare` (UTC+2) | IANA timezone for the times above and all other cron jobs |
 | `GOOGLE_API_KEY`, `GOOGLE_DRIVE_FOLDER_ID` | — | Existing advert folder; it must be readable with the API key |
-| `CHANNEL_ID` | — | Channel id (`...@newsletter`). If unset, Channel posting is disabled with a warning |
+| `CHANNEL_ID` | — | Channel id (`...@newsletter`). Takes precedence over `CHANNEL_INVITE` |
+| `CHANNEL_INVITE` | — | Channel link (`https://whatsapp.com/channel/...`) or its code. Used to look up the id at startup when `CHANNEL_ID` is unset; the id is logged so you can copy it into `CHANNEL_ID`. If neither is set, Channel posting is disabled with a warning |
 | `OPENAI_API_KEY`, `OPENAI_ORGANISATION_KEY` | — | Existing OpenAI configuration, unchanged |
 | `OPENAI_CHANNEL_MODEL` | `gpt-4o-mini` | Model for Channel posts; must support the Responses API and web search |
 | `STATUS_IMAGES_PER_BATCH`, `CHANNEL_POSTS_PER_SLOT` | `5`, `1` | Items per scheduled time |
@@ -30,7 +31,10 @@ defaults rather than silently producing a different schedule.
 1. Create the Channel once with `channelService.createChannel(title)`
    (`services/channel.service.js`) from the connected account, or reuse an existing
    Channel that account owns.
-2. Put the returned `nid._serialized` value in `CHANNEL_ID` and restart.
+2. Put the returned `nid._serialized` value in `CHANNEL_ID` and restart. For an existing
+   Channel, set `CHANNEL_INVITE` to its link instead; the bot looks the id up itself.
+   The link only identifies the Channel: **the connected WhatsApp account must be its
+   owner or an admin to post**, otherwise sends are rejected.
 
 **Capability limits:** `whatsapp-web.js` is an unofficial client. It can create
 Channels and send text/image/video/poll messages to a Channel the connected account

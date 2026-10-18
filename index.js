@@ -109,7 +109,7 @@ connectDB().then(async () => {
     cron.schedule('* * * * *', () => statusScheduler.check(), CRON_TZ);
     void statusScheduler.check();
 
-    if (config.CHANNEL_ID) {
+    if (config.CHANNEL_ID || config.CHANNEL_INVITE_CODE) {
       const channelScheduler = createStatusScheduler({
         store: createMongoStatusRunStore(ChannelRun),
         publish: publishChannelPosts,
@@ -121,7 +121,7 @@ connectDB().then(async () => {
       cron.schedule('* * * * *', () => channelScheduler.check(), CRON_TZ);
       void channelScheduler.check();
     } else {
-      console.warn('[channel] CHANNEL_ID is not set; Channel posting is disabled.');
+      console.warn('[channel] Neither CHANNEL_ID nor CHANNEL_INVITE is set; Channel posting is disabled.');
     }
 
     // Harvest group contacts daily at 02:00 CAT

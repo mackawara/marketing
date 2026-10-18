@@ -65,13 +65,15 @@ const createChannelPublisher = ({
 let publisher;
 const publishChannelPosts = async (options) => {
   if (!publisher) {
-    const config = require('../config');
     const openai = require('./openai');
     const channelService = require('./channel.service');
+    // Resolved before generating anything; throws (and the run retries) if the
+    // Channel cannot be found yet.
+    const channelId = await channelService.resolveChannelId();
     publisher = createChannelPublisher({
       openai,
-      channelId: config.CHANNEL_ID,
-      send: (channelId, text) => channelService.postUpdate(channelId, text),
+      channelId,
+      send: (id, text) => channelService.postUpdate(id, text),
     });
   }
   return publisher(options);

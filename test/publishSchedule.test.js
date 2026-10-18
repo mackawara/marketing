@@ -5,6 +5,7 @@ const { createStatusScheduler, businessClock } = require('../services/statusSche
 const { selectRotatingFile } = require('../services/googleDrive');
 const { createStatusPoster } = require('../services/statusService');
 const { createChannelPublisher } = require('../services/channelPublisher');
+const { createChannelIdResolver } = require('../services/channelId');
 const { generateChannelPost, topicFor, TOPICS } = require('../services/channelContent');
 
 const quiet = { log() {}, info() {}, warn() {}, error() {} };
@@ -305,4 +306,25 @@ test('a persisted file removed from Drive is replaced by the rotation pick', asy
   await poster({ selectedFiles: { 0: { id: 'gone', filename: 'gone.jpg' } }, onSlotSelected: async (slot, file) => selected.push([slot, file.id]) });
   assert.deepEqual(published, ['c.jpg']);
   assert.deepEqual(selected, [[0, 'c']]);
+});
+
+test('the Channel invite link from WhatsApp yields its invite code', () => {
+  assert.equal(config.parseChannelInvite('https://whatsapp.com/channel/0029VbDows79Bb5wg6WVOP3A'), '0029VbDows79Bb5wg6WVOP3A');
+  assert.equal(config.parseChannelInvite(' 0029VbDows79Bb5wg6WVOP3A '), '0029VbDows79Bb5wg6WVOP3A');
+  assert.equal(config.parseChannelInvite(''), undefined);
+  assert.equal(config.parseChannelInvite('not a code!'), undefined);
+});
+
+test('Channel id: CHANNEL_ID wins, else the invite code is resolved once and cached', async () => {
+  const lookups = [];
+  const lookup = async (code) => { lookups.push(code); return { id: { _serialized: '120363@newsletter' } }; };
+  const quietLog = { log() {} };
+  assert.equal(await createChannelIdResolver({ configuredId: 'set@newsletter', inviteCode: 'abc', getChannelByInviteCode: lookup, logger: quietLog })(), 'set@newsletter');
+  assert.equal(lookups.length, 0);
+  const resolve = createChannelIdResolver({ inviteCode: 'abc', getChannelByInviteCode: lookup, logger: quietLog });
+  assert.equal(await resolve(), '120363@newsletter');
+  assert.equal(await resolve(), '120363@newsletter');
+  assert.deepEqual(lookups, ['abc']);
+  assert.equal(await createChannelIdResolver({ getChannelByInviteCode: lookup })(), null);
+  await assert.rejects(createChannelIdResolver({ inviteCode: 'bad', getChannelByInviteCode: async () => undefined, logger: quietLog })(), /Could not resolve/);
 });

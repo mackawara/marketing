@@ -27,6 +27,14 @@ const parsePublishTimes = (value) => {
     return [...times].sort()
 }
 
+// Accepts "https://whatsapp.com/channel/0029Vb..." or just "0029Vb...".
+const parseChannelInvite = (value) => {
+    if (!value) return undefined
+    const match = String(value).trim().match(/channel\/([A-Za-z0-9_-]+)/)
+    const code = match ? match[1] : String(value).trim()
+    return /^[A-Za-z0-9_-]+$/.test(code) ? code : undefined
+}
+
 const parseCount = (value, fallback) => {
     const count = Number.parseInt(value, 10)
     return Number.isInteger(count) && count > 0 ? count : fallback
@@ -50,6 +58,8 @@ const config = {
     GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
     GOOGLE_DRIVE_FOLDER_ID: process.env.GOOGLE_DRIVE_FOLDER_ID,
     CHANNEL_ID: process.env.CHANNEL_ID,
+    // Used to look up CHANNEL_ID at startup when it is not set directly.
+    CHANNEL_INVITE_CODE: parseChannelInvite(process.env.CHANNEL_INVITE),
     CHANNEL_NAME: process.env.CHANNEL_NAME || "Tech Updates & Solutions",
     VENTA_WIFI_CHATBOT: process.env.VENTA_WIFI_CHATBOT,
     STAFF_NUMBERS: process.env.STAFF_NUMBERS,
@@ -67,3 +77,4 @@ const config = {
     OPENAI_CHANNEL_MODEL: process.env.OPENAI_CHANNEL_MODEL || 'gpt-4o-mini',
 }
 module.exports = config
+module.exports.parseChannelInvite = parseChannelInvite

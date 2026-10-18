@@ -1,6 +1,7 @@
 const { client, MessageMedia } = require("../config/wwebjsConfig");
 const config = require("../config");
 const openai = require("./openai");
+const { createChannelIdResolver } = require("./channelId");
 const { generateChannelPost } = require("./channelContent");
 const { businessClock } = require("./statusScheduler");
 
@@ -12,7 +13,15 @@ const DEFAULT_TECH_DESCRIPTION = "🔧 Your go-to source for technology updates 
 /**
  * Service to manage WhatsApp Channels
  */
+const resolveChannelId = createChannelIdResolver({
+  configuredId: config.CHANNEL_ID,
+  inviteCode: config.CHANNEL_INVITE_CODE,
+  getChannelByInviteCode: (code) => client.getChannelByInviteCode(code),
+});
+
 const channelService = {
+  resolveChannelId,
+
   /**
    * Reusable function to create a new channel
    * @param {string} title - The name of the channel (e.g., "Tech Updates & Solutions")
@@ -114,15 +123,16 @@ const channelService = {
    * @param {number} [rotationIndex] - Topic rotation position (random if omitted)
    */
   async postRandomTechTip(rotationIndex = Math.floor(Math.random() * 1000)) {
-    if (!config.CHANNEL_ID) {
-      throw new Error("CHANNEL_ID not set in config. Please create a channel first.");
+    const channelId = await resolveChannelId();
+    if (!channelId) {
+      throw new Error("CHANNEL_ID (or CHANNEL_INVITE) not set in config.");
     }
     const { text, topic } = await generateChannelPost({
       openai,
       rotationIndex,
       date: businessClock(new Date()).date,
     });
-    await this.postUpdate(config.CHANNEL_ID, text);
+    await this.postUpdate(channelId, text);
     console.log(`Channel ${topic} post published.`);
     return { text, topic };
   }
